@@ -71,7 +71,7 @@ export class Project extends Item {
       const link = `${momentDay.year()}/Daily/${String(momentDay.month() + 1).padStart(
         2,
         '0',
-      )}/${momentDay.format('YYYY-MM-DD')}.md`;
+      )}/${momentDay.format('YYYY-MM-DD EEEE')}.md`;
       const file = this.file.get(link, '', this.settings.periodicNotesPath);
 
       if (file instanceof TFile) {
