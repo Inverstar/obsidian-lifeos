@@ -242,9 +242,12 @@ export async function createPeriodicFile(
   const year = date.format('YYYY');
   let value;
 
-  if (periodType === DAILY) {
-    folder = `${settings.periodicNotesPath}/${year}/${periodType}/${String(date.month() + 1).padStart(2, '0')}`;
-    value = date.format('YYYY-MM-DD dddd'); //修改同步日记文件名
+  if (periodType === DAILY) {  
+    const monthNum = String(date.month() + 1).padStart(2, '0');  
+    const monthName = date.locale('en').format('MMMM'); // 英文月份名  
+    const weekNum = date.isoWeek(); // ISO 周数  
+    folder = `${settings.periodicNotesPath}/${year}/${monthNum}-${monthName}/第${weekNum}周`;  
+    value = date.locale('en').format('YYYY-MM-DD dddd');  
   } else if (periodType === WEEKLY) {
     folder = `${settings.periodicNotesPath}/${date.format('gggg')}/${periodType}`;
     value = date.format('gggg-[W]ww');

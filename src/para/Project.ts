@@ -67,11 +67,11 @@ export class Project extends Item {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const momentDay = moment(day);
-      const link = `${momentDay.year()}/Daily/${String(momentDay.month() + 1).padStart(
-        2,
-        '0',
-      )}/${momentDay.locale('en').format('YYYY-MM-DD dddd')}.md`;
+      const momentDay = moment(day);  
+      const monthNum = String(momentDay.month() + 1).padStart(2, '0');  
+      const monthName = momentDay.locale('en').format('MMMM');  
+      const weekNum = momentDay.isoWeek();  
+      const link = `${momentDay.year()}/${monthNum}-${monthName}/第${weekNum}周/${momentDay.locale('en').format('YYYY-MM-DD dddd')}.md`;
       const file = this.file.get(link, '', this.settings.periodicNotesPath);
 
       if (file instanceof TFile) {

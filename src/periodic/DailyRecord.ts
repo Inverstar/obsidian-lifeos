@@ -394,11 +394,11 @@ export class DailyRecord {
 
     await Promise.all(
       Object.keys(dailyRecordByDay).map(async (today) => {
-        const momentDay = moment(today);
-        const link = `${momentDay.year()}/Daily/${String(momentDay.month() + 1).padStart(
-          2,
-          '0',
-        )}/${momentDay.locale('en').format('YYYY-MM-DD dddd')}.md`; //修改同步日记文件名
+        const momentDay = moment(today);  
+        const monthNum = String(momentDay.month() + 1).padStart(2, '0');  
+        const monthName = momentDay.locale('en').format('MMMM');  
+        const weekNum = momentDay.isoWeek();  
+        const link = `${momentDay.year()}/${monthNum}-${monthName}/第${weekNum}周/${momentDay.locale('en').format('YYYY-MM-DD dddd')}.md`;
         let targetFile = this.file.get(link, '', this.settings.periodicNotesPath);
 
         if (!targetFile) {
