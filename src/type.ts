@@ -24,6 +24,7 @@ export type PluginSettings = {
   projectListHeader: string;
   areaListHeader: string;
   habitHeader: string;
+  dailyNoteFormat: string; //新增日记格式
   dailyRecordHeader: string;
   dailyRecordAPI: string;
   dailyRecordToken: string;

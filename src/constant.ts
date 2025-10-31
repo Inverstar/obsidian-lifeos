@@ -18,13 +18,13 @@ export const TAG = 'Tag';
 export const FOLDER = 'Folder';
 export const INDEX = 'Index';
 
-export const DAILY_REG = /^\d{4}-\d{2}-(\d{2})/;
+export const DAILY_REG = /^\d{4}-\d{2}-(\d{2})( [A-Za-z]+)?/; // Modified to match daily notes with day of the week
 export const WEEKLY_REG = /^\d{4}-W(\d{1,2})/;
 export const MONTHLY_REG = /^\d{4}-(\d{1,2})/;
 export const QUARTERLY_REG = /^\d{4}-Q(\d{1,2})/;
 export const YEARLY_REG = /(^\d{4})/;
 
-export const FULL_DAILY_REG = /\d{4}\/Daily\/\d{2}\/\d{4}-\d{2}-\d{2}.md$/;
+export const FULL_DAILY_REG = /\d{4}\/Daily\/\d{2}\/\d{4}-\d{2}-\d{2}( [A-Za-z]+)?\.md$/; // Modified to match daily notes with day of the week
 export const FULL_WEEKLY_REG = /\d{4}\/Weekly\/\d{4}-W(\d{1,2}).md$/;
 export const FULL_MONTHLY_REG = /\d{4}\/Monthly\/\d{4}-\d{1,2}.md$/;
 export const FULL_QUARTERLY_REG = /\d{4}\/Quarterly\/\d{4}-Q\d{1,2}.md$/;

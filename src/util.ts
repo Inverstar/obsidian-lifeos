@@ -243,7 +243,7 @@ export async function createPeriodicFile(
 
   if (periodType === DAILY) {
     folder = `${settings.periodicNotesPath}/${year}/${periodType}/${String(date.month() + 1).padStart(2, '0')}`;
-    value = date.format('YYYY-MM-DD');
+    value = date.format('YYYY-MM-DD EEEE'); //修改同步日记文件名
   } else if (periodType === WEEKLY) {
     folder = `${settings.periodicNotesPath}/${date.format('gggg')}/${periodType}`;
     value = date.format('gggg-[W]ww');
