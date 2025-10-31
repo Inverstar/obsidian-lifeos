@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   projectListHeader: 'Project List',
   areaListHeader: 'First Things Dimension',
   habitHeader: 'Habit',
+  dailyNoteFormat: 'YYYY-MM-DD EEEE',
   dailyRecordHeader: 'Daily Record',
   dailyRecordAPI: '',
   dailyRecordToken: '',
