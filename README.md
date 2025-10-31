@@ -1,3 +1,9 @@
+修改memos同步相关设置适应自己的文件夹及文件名风格
+修改时间风格与Thino一致
+考虑反向同步
+考虑修改同步
+
+
 # Obsidian LifeOS
 
 > Previously Used Name: Obsidian Periodic PARA
