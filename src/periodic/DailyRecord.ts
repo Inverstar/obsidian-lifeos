@@ -398,7 +398,7 @@ export class DailyRecord {
         const link = `${momentDay.year()}/Daily/${String(momentDay.month() + 1).padStart(
           2,
           '0',
-        )}/${momentDay.format('YYYY-MM-DD EEEE')}.md`; //修改同步日记文件名
+        )}/${momentDay.locale('en').format('YYYY-MM-DD dddd')}.md`; //修改同步日记文件名
         let targetFile = this.file.get(link, '', this.settings.periodicNotesPath);
 
         if (!targetFile) {

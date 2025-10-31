@@ -232,7 +232,8 @@ export async function createPeriodicFile(
   }
 
   const locale = window.localStorage.getItem('language') || 'en';
-  const date = dayjs(day.format()).locale(locale);
+  const date = dayjs(day.format()).locale('en');  
+  //const date = dayjs(day.format()).locale(locale);
 
   let templateFile = '';
   let folder = '';
@@ -243,7 +244,7 @@ export async function createPeriodicFile(
 
   if (periodType === DAILY) {
     folder = `${settings.periodicNotesPath}/${year}/${periodType}/${String(date.month() + 1).padStart(2, '0')}`;
-    value = date.format('YYYY-MM-DD EEEE'); //修改同步日记文件名
+    value = date.format('YYYY-MM-DD dddd'); //修改同步日记文件名
   } else if (periodType === WEEKLY) {
     folder = `${settings.periodicNotesPath}/${date.format('gggg')}/${periodType}`;
     value = date.format('gggg-[W]ww');
