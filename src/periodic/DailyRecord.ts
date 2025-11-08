@@ -479,7 +479,7 @@ export class DailyRecord {
             .map((item) => item[1]);
 
           const finalRecordContent = localRecordWithoutTime.concat(sortedRecordList).join('\n');
-          const fileContent = `${prefix.trim()}\n${finalRecordContent}${suffix.trim()}\n`;
+          const fileContent = `${prefix.trim()}\n${finalRecordContent}${suffix.trim()}`;
 
           await this.app.vault.modify(targetFile, fileContent);
         }
