@@ -1,10 +1,6 @@
 {
   "name": "periodic-para",
-<<<<<<< HEAD
-  "version": "1.23.2",
-=======
   "version": "1.23.4",
->>>>>>> cc01fb65badab7036937ec28df0236ceeebb3261
   "description": "Assist in practicing the PARA method with periodic notes and usememos.",
   "main": "main.js",
   "scripts": {
