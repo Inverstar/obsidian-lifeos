@@ -12,7 +12,7 @@ import { Date as PeriodicDate } from '../periodic/Date';
 import { File } from '../periodic/File';
 import { generateIgnoreOperator, renderError } from '../util';
 
-type Element = { text: string; link: Link };
+type Element = { text: string; link: Link; path: string };
 
 export class Bullet {
   app: App;
@@ -53,9 +53,10 @@ export class Bullet {
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
-    const targetHeader =
+    const targetHeaderRaw =
       (lines[1]?.startsWith('header:') ? lines[1].substring(7).trim() : lines[1]) ||
       this.settings.dailyRecordHeader?.trim();
+    const targetHeader = targetHeaderRaw?.replace(/^#+\s*/, '');
 
     const lists = dataview
       .pages(`"${days.join('" or "')}"`)
@@ -68,13 +69,14 @@ export class Bullet {
       .sort((L: { path: string; line: number }) => L.path, 'desc');
 
     const groupResult = lists.groupBy((elem: Element) => {
-      return elem.link;
+      return elem.path;
     });
-    const sortResult = groupResult.sort((elem: { rows: Element }) => elem.rows.link, 'desc');
+    const sortResult = groupResult.sort((elem: { key: string }) => elem.key, 'desc');
 
     let markdown = '';
     for (const group of sortResult.array()) {
-      const link = group.key;
+      const path = group.key;
+      const link = dataview.fileLink(path);
       const bullets = group.rows.array();
 
       markdown += `#### ${link}\n`;
