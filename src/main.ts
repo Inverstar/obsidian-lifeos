@@ -227,12 +227,9 @@ export default class LifeOS extends Plugin {
     clearInterval(this.interval);
   }
 
-  markdownCodeBlockProcessor = (
-    source: keyof typeof this.views,
-    el: HTMLElement,
-    ctx: MarkdownPostProcessorContext,
-  ) => {
-    const view = source.trim() as keyof typeof this.views;
+  markdownCodeBlockProcessor = (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+    const lines = source.split('\n').map((line) => line.trim());
+    const view = lines[0] as keyof typeof this.views;
     const legacyView = `${view}ByTime` as keyof typeof this.views;
     const localeKey = this.getCurrentLocaleKey();
 
@@ -256,7 +253,7 @@ export default class LifeOS extends Plugin {
 
     const callback = this.views[view] || this.views[legacyView];
 
-    return callback(view, el, ctx);
+    return callback(source, el, ctx);
   };
 
   async loadSettings() {

@@ -1,3 +1,4 @@
+import { MarkdownRenderer } from 'obsidian';
 import type { App, MarkdownPostProcessorContext, Plugin } from 'obsidian';
 import type { PluginSettings } from '../type';
 
@@ -48,13 +49,20 @@ export class Bullet {
       return;
     }
 
-    const dailyRecordHeader = this.settings.dailyRecordHeader?.trim();
+    const lines = source
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const targetHeader =
+      (lines[1]?.startsWith('header:') ? lines[1].substring(7).trim() : lines[1]) ||
+      this.settings.dailyRecordHeader?.trim();
+
     const lists = dataview
       .pages(`"${days.join('" or "')}"`)
       .file.lists.where((L: { task: boolean; path: string; section: { subpath?: string } }) => {
         if (L.task) return false;
-        // 只收集日常记录标题下的 bullet
-        if (dailyRecordHeader) return L.section?.subpath?.trim() === dailyRecordHeader;
+        // 只收集指定标题下的 bullet
+        if (targetHeader) return L.section?.subpath?.trim() === targetHeader;
         return true;
       })
       .sort((L: { path: string; line: number }) => L.path, 'desc');
@@ -63,13 +71,23 @@ export class Bullet {
       return elem.link;
     });
     const sortResult = groupResult.sort((elem: { rows: Element }) => elem.rows.link, 'desc');
-    const tableResult = sortResult.map((k: { rows: Element }) => [k.rows.text as string, k.rows.link as Link]);
-    const tableValues = tableResult.array();
+
+    let markdown = '';
+    for (const group of sortResult.array()) {
+      const link = group.key;
+      const bullets = group.rows.array();
+
+      markdown += `#### ${link}\n`;
+      for (const bullet of bullets) {
+        markdown += `- ${bullet.text}\n`;
+      }
+      markdown += '\n';
+    }
 
     const div = el.createEl('div');
     const component = new Markdown(div);
 
-    dataview.table(['Bullet', 'Link'], tableValues, div, component, filename);
+    MarkdownRenderer.render(this.app, markdown, div, filename, component);
 
     ctx.addChild(component);
   };
