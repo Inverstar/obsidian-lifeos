@@ -1,0 +1,154 @@
+.inline-select {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  font-size: 13px;
+
+  &.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  // 打开时把容器提为高层叠上下文，使下拉浮层盖在后续设置行之上（否则下半部分会被后面的 Form.Item 盖住、透出且点不到）
+  &.open {
+    z-index: 1000;
+  }
+}
+
+.inline-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 8px;
+  background: var(--background-modifier-form-field, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--input-radius, 6px);
+  cursor: pointer;
+  outline: none;
+
+  .inline-select.open & {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus, rgba(0, 0, 0, 0.06));
+  }
+}
+
+.inline-select-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
+}
+
+.inline-select-placeholder {
+  color: var(--text-faint);
+}
+
+.inline-select-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.inline-select-clear {
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-normal);
+  }
+}
+
+.inline-select-arrow {
+  color: var(--text-muted);
+  font-size: 10px;
+  transition: transform 0.15s ease;
+
+  .inline-select.open & {
+    transform: rotate(180deg);
+  }
+}
+
+.inline-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: hidden;
+  background-color: var(--color-base-00, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 8px);
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.2));
+}
+
+.inline-select-search {
+  padding: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+
+  input {
+    width: 100%;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-modifier-form-field, var(--background-primary));
+    color: var(--text-normal);
+    padding: 4px 8px;
+    font-size: 13px;
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+.inline-select-options {
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.inline-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-normal);
+
+  &.highlighted {
+    background: var(--background-modifier-hover);
+  }
+
+  &.selected {
+    color: var(--interactive-accent);
+    font-weight: var(--font-medium, 600);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.inline-select-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inline-select-option-check {
+  flex: 0 0 auto;
+  color: var(--interactive-accent);
+}
+
+.inline-select-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-faint);
+}
