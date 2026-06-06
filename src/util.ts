@@ -98,7 +98,7 @@ export function formatDailyRecord(record: DailyRecordType, dailyRecordTag?: stri
   const { createdTs, createdAt, content, resourceList } = record;
   const timeStamp = createdAt ? moment(createdAt).unix() : createdTs;
   const [date, time] = moment(timeStamp * 1000)
-    .format('YYYY-MM-DD HH:mm')
+    .format('YYYY-MM-DD HH:mm:ss')
     .split(' ');
   const [firstLine, ...otherLine] = content.trim().split('\n');
   const isTask = /^- \[.*?\]/.test(firstLine); // 目前仅支持 task

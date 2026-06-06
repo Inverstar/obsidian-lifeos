@@ -562,13 +562,14 @@ export class DailyRecord {
 
             if (createdTs) {
               remoteRecordListWithTime[createdTs] = record;
-            } else if (/^- (\[.*\] )?\d\d:\d\d/.test(record)) {
+            } else if (/^- (\[.*\] )?\d\d:\d\d(:\d\d)?/.test(record)) {
               // 本地有时间的记录
-              const regMatch = record.match(/\d\d:\d\d/);
+              const regMatch = record.match(/\d\d:\d\d(:\d\d)?/);
 
               if (regMatch) {
                 const time = regMatch[0]?.trim();
-                const timeStamp = moment(`${today}-${time}`, 'YYYY-MM-DD-HH:mm').unix();
+                const format = time.split(':').length === 3 ? 'YYYY-MM-DD-HH:mm:ss' : 'YYYY-MM-DD-HH:mm';
+                const timeStamp = moment(`${today}-${time}`, format).unix();
 
                 if (localRecordListWithTime[timeStamp]) {
                   // 避免时间戳重复，导致相互覆盖
