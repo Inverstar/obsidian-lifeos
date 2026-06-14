@@ -357,7 +357,7 @@ export const CreateNote = (props: { width: number }) => {
   const singleClickRef = useRef<number | null>(null);
   const handleTagInput = (item: string) => {
     const itemTag = form.getFieldValue(`${item}Tag`).replace(/^#/, '');
-    const itemFolder = itemTag;
+    const itemFolder = itemTag.split('/')[0];
     const itemIndex =
       settings?.paraIndexFilename === 'readme'
         ? `${itemTag.split('/').reverse()[0]}.README`
