@@ -82,6 +82,11 @@ const EN = {
   [`${ERROR_MESSAGE}NO_DAILY_RECORD_TOKEN`]: 'Please set usememos token in LifeOS plugin',
   [`${ERROR_MESSAGE}NO_DAILY_FILE_EXIST`]: 'Daily file not exists, please create it first: ',
   [`${ERROR_MESSAGE}CREATING_DAILY_FILE`]: 'Daily file not exists, creating now! ',
+  [`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]:
+    'Failed to parse date from the current file path. Please ensure this file is a periodic note.',
+  [`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]: 'No periodic note files found in the specified path. Tried paths:\n',
+  [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: 'Cannot find the specified header: ',
+  [`${ERROR_MESSAGE}LIST_EMPTY`]: 'No items found under the specified header.',
 
   SETTING_PERIODIC_NOTES: 'Periodic Notes',
   SETTING_PARA_NOTES: 'PARA Notes',
@@ -225,6 +230,10 @@ const ZH = {
   [`${ERROR_MESSAGE}NO_DAILY_RECORD_TOKEN`]: '请在 LifeOS 插件中设置 usememos 的 Token',
   [`${ERROR_MESSAGE}NO_DAILY_FILE_EXIST`]: '日记文件不存在，请先创建：',
   [`${ERROR_MESSAGE}CREATING_DAILY_FILE`]: '日记文件不存在，正在创建中！',
+  [`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]: '无法从当前文件路径解析日期，请确保当前文件是周期笔记。',
+  [`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]: '在指定路径下找不到周期笔记文件，已尝试查找以下路径：\n',
+  [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: '找不到指定的标题：',
+  [`${ERROR_MESSAGE}LIST_EMPTY`]: '在指定的标题下没有找到任何列表项。',
 
   SETTING_PERIODIC_NOTES: '周期笔记',
   SETTING_PARA_NOTES: 'PARA 笔记',
@@ -362,6 +371,10 @@ const ZH_TW = {
   [`${ERROR_MESSAGE}NO_DAILY_RECORD_TOKEN`]: '請在 LifeOS 外掛中設定 usememos 的 Token',
   [`${ERROR_MESSAGE}NO_DAILY_FILE_EXIST`]: '日記檔不存在，請先建立：',
   [`${ERROR_MESSAGE}CREATING_DAILY_FILE`]: '日記檔不存在，正在建立！',
+  [`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]: '無法從當前檔案路徑解析日期，請確保當前檔案是週期筆記。',
+  [`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]: '在指定路徑下找不到週期筆記檔案，已嘗試查找以下路徑：\n',
+  [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: '找不到指定的標題：',
+  [`${ERROR_MESSAGE}LIST_EMPTY`]: '在指定的標題下沒有找到任何列表項。',
   SETTING_PERIODIC_NOTES: '週期筆記',
   SETTING_PARA_NOTES: 'PARA 筆記',
   SETTING_TURN_ON: '開啟',
@@ -553,7 +566,8 @@ const ES = {
   [FOLDER]: 'Carpeta',
   [INDEX]: 'Indice',
   QUICK_JUMP: 'Haz doble clic para abrir la nota periodica de ',
-  [`${TAG}ToolTip`]: 'Las etiquetas de las notas PARA sirven como identificadores unicos para tareas, notas y archivos.',
+  [`${TAG}ToolTip`]:
+    'Las etiquetas de las notas PARA sirven como identificadores unicos para tareas, notas y archivos.',
   [`${FOLDER}ToolTip`]: 'La carpeta de las notas PARA almacena notas relacionadas con el tema correspondiente.',
   [`${INDEX}ToolTip`]:
     'El nombre del archivo indice de las notas PARA se usa para indexar tareas, notas y archivos distribuidos en distintas ubicaciones. Los formatos validos son LifeOS.README.md/README.md o el mismo nombre de la carpeta.',
@@ -588,7 +602,8 @@ const ES = {
   SETTING_DAILY_RECORD_TOKEN: 'Token:',
   SETTING_DAILY_RECORD_TOKEN_HELP: 'El token de su API',
   SETTING_DAILY_RECORD_TAG: 'Etiqueta:',
-  SETTING_DAILY_RECORD_TAG_HELP: 'Etiqueta para los registros diarios (use un espacio en blanco para no anadir ninguna)',
+  SETTING_DAILY_RECORD_TAG_HELP:
+    'Etiqueta para los registros diarios (use un espacio en blanco para no anadir ninguna)',
   SETTING_DAILY_RECORD_CREATING: 'Crear automaticamente:',
   SETTING_DAILY_RECORD_CREATING_HELP: 'Crear automaticamente cuando la nota diaria no exista',
   SETTING_DAILY_RECORD_WARNING: 'Advertencia:',
@@ -651,10 +666,9 @@ const FR = {
   [INDEX]: 'Index',
   QUICK_JUMP: 'Double-cliquez pour ouvrir la note periodique correspondante ',
   [`${TAG}ToolTip`]: 'Les tags des notes PARA servent d identifiants uniques pour les taches, notes et fichiers.',
-  [`${FOLDER}ToolTip`]:
-    'Le dossier des notes PARA est utilise pour stocker les notes liees au theme correspondant.',
+  [`${FOLDER}ToolTip`]: 'Le dossier des notes PARA est utilise pour stocker les notes liees au theme correspondant.',
   [`${INDEX}ToolTip`]:
-    "Le nom du fichier d index des notes PARA permet d indexer les taches, notes et fichiers repartis a differents endroits. Les formats attendus sont LifeOS.README.md/README.md ou le meme nom que le dossier.",
+    'Le nom du fichier d index des notes PARA permet d indexer les taches, notes et fichiers repartis a differents endroits. Les formats attendus sont LifeOS.README.md/README.md ou le meme nom que le dossier.',
   [`${TAG}Required`]: 'Un tag unique est requis',
   [`${TAG}Required2`]: "L'identifiant unique ne peut pas contenir d'espaces",
   [`${TAG}Required3`]: "L'identifiant unique doit commencer par #",

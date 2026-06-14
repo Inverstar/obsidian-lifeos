@@ -1,10 +1,12 @@
 import type { DateType } from '../type';
 
-import { TFile } from 'obsidian';
+import { TFile, moment } from 'obsidian';
 import { type MarkdownPostProcessorContext, MarkdownRenderer } from 'obsidian';
 import { Markdown } from '../component/Markdown';
+import { ERROR_MESSAGE } from '../constant';
+import { getI18n } from '../i18n';
 import { Date as PeriodicDate } from '../periodic/Date';
-import { generateHeaderRegExp } from '../util';
+import { generateHeaderRegExp, renderError } from '../util';
 import { Item } from './Item';
 
 const timeReg = /(\d+)hr?(\d+)?/;
@@ -68,6 +70,25 @@ export class Project extends Item {
     const projectTimeConsume: Record<string, string> = {};
     let totalTime = '';
     const tasks = [];
+    const missingFiles: string[] = [];
+    let hasHeaderMatch = false;
+
+    if (from && to) {
+      const currentDate = moment(from).clone();
+      const endDate = moment(to);
+      const dailyFormat = this.settings.dailyNoteFormat || 'YYYY-MM-DD';
+      while (currentDate.isSameOrBefore(endDate)) {
+        const dayLink = `${currentDate.year()}/Daily/${String(currentDate.month() + 1).padStart(
+          2,
+          '0',
+        )}/${currentDate.format(dailyFormat)}.md`;
+        const file = this.file.get(dayLink, '', this.settings.periodicNotesPath);
+        if (!file) {
+          missingFiles.push(`${this.settings.periodicNotesPath}/${dayLink}`);
+        }
+        currentDate.add(1, 'day');
+      }
+    }
 
     for (const periodicNote of periodicNotes) {
       const file = this.app.vault.getFileByPath(periodicNote);
@@ -79,6 +100,9 @@ export class Project extends Item {
         tasks.push(async () => {
           const fileContent = await this.app.vault.cachedRead(file);
           const regMatch = fileContent.match(reg);
+          if (regMatch) {
+            hasHeaderMatch = true;
+          }
           const projectContent = regMatch?.length ? regMatch[2]?.split('\n') : [];
 
           projectContent.forEach((project) => {
@@ -130,17 +154,47 @@ export class Project extends Item {
       projectList,
       projectTimeConsume,
       totalTime,
+      missingFiles,
+      hasHeaderMatch,
     };
   }
 
   listByTime = async (_source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+    const filename = ctx.sourcePath;
     const date = new PeriodicDate(this.app, this.settings, this.file, this.locale);
-    const parsed = date.parse(ctx.sourcePath);
-
-    const header = this.settings.projectListHeader;
-    const { projectList, projectTimeConsume } = await this.filter(parsed, header);
+    const parsed = date.parse(filename);
 
     const div = el.createEl('div');
+
+    if (!parsed.year && !parsed.month && !parsed.quarter && !parsed.week && !parsed.day) {
+      const errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]}`;
+      renderError(this.app, errorMsg, div, filename);
+      ctx.addChild(new Markdown(div));
+      return;
+    }
+
+    const header = this.settings.projectListHeader;
+    const { projectList, projectTimeConsume, missingFiles, hasHeaderMatch } = await this.filter(parsed, header);
+
+    if (projectList.length === 0) {
+      let errorMsg = '';
+      const { from, to } = date.days(parsed);
+      if (!from || !to) {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]}`;
+      } else if (missingFiles.length > 0 && projectList.length === 0 && !hasHeaderMatch) {
+        const displayFiles = missingFiles.slice(0, 15);
+        const suffix = missingFiles.length > 15 ? `\n> - ... and ${missingFiles.length - 15} more files.` : '';
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]}\n${displayFiles.map((path) => `> - ${path}`).join('\n')}${suffix}`;
+      } else if (!hasHeaderMatch) {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}HEADER_NOT_FOUND`]} \`${header}\``;
+      } else {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}LIST_EMPTY`]}`;
+      }
+      renderError(this.app, errorMsg, div, filename);
+      ctx.addChild(new Markdown(div));
+      return;
+    }
+
     const list: string[] = [];
 
     projectList.forEach((project: string, index: number) => {

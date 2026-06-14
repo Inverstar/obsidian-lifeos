@@ -3,7 +3,9 @@ import type { DateType } from '../type';
 
 import { MarkdownRenderer, TFile } from 'obsidian';
 import { Markdown } from '../component/Markdown';
-import { generateHeaderRegExp } from '../util';
+import { ERROR_MESSAGE } from '../constant';
+import { getI18n } from '../i18n';
+import { generateHeaderRegExp, renderError } from '../util';
 import { Item } from './Item';
 
 export class Area extends Item {
@@ -21,6 +23,8 @@ export class Area extends Item {
     const quarterList = ['Q1', 'Q2', 'Q3', 'Q4'];
     const areaList: string[] = [];
     const tasks = [];
+    const missingFiles: string[] = [];
+    let hasHeaderMatch = false;
 
     for (let index = 0; index < quarterList.length; index++) {
       const quarter = quarterList[index];
@@ -34,6 +38,9 @@ export class Area extends Item {
           tasks.push(async () => {
             const fileContent = await this.app.vault.cachedRead(file);
             const regMatch = fileContent.match(reg);
+            if (regMatch) {
+              hasHeaderMatch = true;
+            }
             const areaContent = regMatch?.length ? regMatch[2]?.split('\n') : [];
             areaContent.map((area) => {
               if (!area) {
@@ -47,21 +54,50 @@ export class Area extends Item {
             });
           });
         }
+      } else {
+        missingFiles.push(`${this.settings.periodicNotesPath}/${link}`);
       }
     }
 
     await Promise.all(tasks.map((task) => task()));
 
-    return areaList;
+    return {
+      areaList,
+      missingFiles,
+      hasHeaderMatch,
+    };
   }
 
   listByTime = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filename = ctx.sourcePath;
     const parsed = this.date.parse(filename);
 
-    const header = this.settings.areaListHeader;
-    const areaList = await this.filter(parsed, header);
     const div = el.createEl('div');
+
+    if (!parsed.year) {
+      const errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}FAILED_TO_PARSE_DATE`]}`;
+      renderError(this.app, errorMsg, div, filename);
+      ctx.addChild(new Markdown(div));
+      return;
+    }
+
+    const header = this.settings.areaListHeader;
+    const { areaList, missingFiles, hasHeaderMatch } = await this.filter(parsed, header);
+
+    if (areaList.length === 0) {
+      let errorMsg = '';
+      if (missingFiles.length === 4) {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]}\n${missingFiles.map((path) => `> - ${path}`).join('\n')}`;
+      } else if (!hasHeaderMatch) {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}HEADER_NOT_FOUND`]} \`${header}\``;
+      } else {
+        errorMsg = `> [!WARNING] Error\n> ${getI18n(this.locale)[`${ERROR_MESSAGE}LIST_EMPTY`]}`;
+      }
+      renderError(this.app, errorMsg, div, filename);
+      ctx.addChild(new Markdown(div));
+      return;
+    }
+
     const list: string[] = [];
 
     areaList.map((area: string, index: number) => {
