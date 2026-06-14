@@ -66,7 +66,15 @@ export async function createFile(
     }
 
     if (!app.vault.getAbstractFileByPath(folder)) {
-      app.vault.createFolder(folder);
+      const parts = folder.split('/');
+      let currentPath = '';
+      for (const part of parts) {
+        if (!part) continue;
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (!app.vault.getAbstractFileByPath(currentPath)) {
+          await app.vault.createFolder(currentPath);
+        }
+      }
     }
 
     const fileCreated = await app.vault.create(finalFile, templateContent);

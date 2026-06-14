@@ -357,9 +357,11 @@ export const CreateNote = (props: { width: number }) => {
   const singleClickRef = useRef<number | null>(null);
   const handleTagInput = (item: string) => {
     const itemTag = form.getFieldValue(`${item}Tag`).replace(/^#/, '');
-    const itemFolder = itemTag.replace(/\//g, '-');
+    const itemFolder = itemTag;
     const itemIndex =
-      settings?.paraIndexFilename === 'readme' ? `${itemTag.split('/').reverse()[0]}.README` : `${itemFolder}`;
+      settings?.paraIndexFilename === 'readme'
+        ? `${itemTag.split('/').reverse()[0]}.README`
+        : `${itemTag.replace(/\//g, '-')}`;
 
     form.setFieldValue(`${item}Folder`, itemFolder);
     form.setFieldValue(`${item}Index`, itemIndex ? `${itemIndex}.md` : '');
@@ -510,7 +512,11 @@ export const CreateNote = (props: { width: number }) => {
                             <Input
                               onChange={() => handleTagInput(para)}
                               allowClear
-                              placeholder={para === PROJECT ? localeMap.PARA_TAG_PLACEHOLDER_PROJECT : localeMap.PARA_TAG_PLACEHOLDER_DEFAULT}
+                              placeholder={
+                                para === PROJECT
+                                  ? localeMap.PARA_TAG_PLACEHOLDER_PROJECT
+                                  : localeMap.PARA_TAG_PLACEHOLDER_DEFAULT
+                              }
                             />
                           </AutoComplete>
                         </Form.Item>
