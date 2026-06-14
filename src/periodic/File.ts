@@ -7,6 +7,7 @@ import { ERROR_MESSAGE } from '../constant';
 import { getI18n } from '../i18n';
 import type LifeOS from '../main';
 import { isInPeriodicNote, isInTemplateNote, logMessage, renderError } from '../util';
+import { Date as PeriodicDate } from './Date';
 
 export class File {
   app: App;
@@ -185,7 +186,29 @@ export class File {
 
   paraListByTime = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filepath = ctx.sourcePath;
-    const tags = (this.tags(filepath) || []).filter(
+    const dateHelper = new PeriodicDate(this.app, this.settings, this, this.locale);
+    const parsed = dateHelper.parse(filepath);
+    const files = dateHelper.files(parsed);
+
+    // Collect all paths to search tags in
+    const pathsToSearch = new Set<string>([filepath]);
+    for (const day of files.days) pathsToSearch.add(day);
+    for (const week of files.weeks) pathsToSearch.add(week);
+    for (const month of files.months) pathsToSearch.add(month);
+    for (const quarter of files.quarters) pathsToSearch.add(quarter);
+
+    let rawTags: string[] = [];
+    for (const path of pathsToSearch) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (cache?.tags) {
+          rawTags.push(...cache.tags.map((t) => t.tag.replace(/^#/, '')));
+        }
+      }
+    }
+
+    const tags = Array.from(new Set(rawTags)).filter(
       (tag: string) => !['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].includes(tag.toLowerCase()),
     );
     const div = el.createEl('div');
@@ -201,15 +224,44 @@ export class File {
 
     const dataview = await this.plugin.getDataviewAPI();
 
-    const paraFolders = [
-      { path: this.settings.projectsPath, title: i18n.PARA_PROJECT_TITLE },
-      { path: this.settings.areasPath, title: i18n.PARA_AREA_TITLE },
-      { path: this.settings.resourcesPath, title: i18n.PARA_RESOURCE_TITLE },
-      { path: this.settings.archivesPath, title: i18n.PARA_ARCHIVE_TITLE },
+    const lines = source
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const params = lines.slice(1).map((p) => p.toLowerCase());
+
+    const allParaFolders = [
+      { key: 'project', path: this.settings.projectsPath, title: i18n.PARA_PROJECT_TITLE },
+      { key: 'area', path: this.settings.areasPath, title: i18n.PARA_AREA_TITLE },
+      { key: 'resource', path: this.settings.resourcesPath, title: i18n.PARA_RESOURCE_TITLE },
+      { key: 'archive', path: this.settings.archivesPath, title: i18n.PARA_ARCHIVE_TITLE },
     ];
+
+    const matchesParam = (key: string, param: string) => {
+      if (key === 'project') {
+        return ['项目', 'project', 'projects'].includes(param);
+      }
+      if (key === 'area') {
+        return ['领域', 'area', 'areas'].includes(param);
+      }
+      if (key === 'resource') {
+        return ['资源', 'resource', 'resources'].includes(param);
+      }
+      if (key === 'archive') {
+        return ['存档', '归档', 'archive', 'archives'].includes(param);
+      }
+      return false;
+    };
+
+    const paraFolders =
+      params.length > 0
+        ? allParaFolders.filter((folder) => params.some((param) => matchesParam(folder.key, param)))
+        : allParaFolders;
 
     let foundAnything = false;
     let markdown = '';
+
+    console.log('ParaListByTime debug - Current Daily Note tags:', tags);
 
     for (const folderConfig of paraFolders) {
       if (!folderConfig.path) {
@@ -218,24 +270,34 @@ export class File {
 
       // Query pages in this folder
       const pages = dataview.pages(`"${folderConfig.path}"`);
+      console.log(`ParaListByTime debug - Folder: "${folderConfig.path}", total pages found: ${pages.length}`);
 
       const matches = pages.filter((p: any) => {
         let pageTags: any = p.file?.tags;
-        if (!pageTags) return false;
+        if (!pageTags) {
+          console.log(`Page ${p.file.path} has no p.file.tags`);
+          return false;
+        }
         if (typeof pageTags.array === 'function') {
           pageTags = pageTags.array();
         }
         if (!Array.isArray(pageTags)) {
+          console.log(`Page ${p.file.path} pageTags is not an array:`, pageTags);
           return false;
         }
 
         const cleanPageTags = pageTags.map((tag: string) => tag.replace(/^#/, ''));
-        return cleanPageTags.some((tag: string) => tags.includes(tag));
+        const matched = cleanPageTags.some((tag: string) => tags.includes(tag));
+        if (matched) {
+          console.log(`Page ${p.file.path} MATCHED! cleanPageTags:`, cleanPageTags);
+        }
+        return matched;
       });
 
       if (matches.length > 0) {
         markdown += `#### ${folderConfig.title}\n`;
-        const listStr = matches
+        const matchesArray = matches.array();
+        const listStr = matchesArray
           .sort((a: any, b: any) => {
             const timeA = a.file.mtime?.ts || a.file.mtime?.toMillis?.() || 0;
             const timeB = b.file.mtime?.ts || b.file.mtime?.toMillis?.() || 0;
