@@ -1,4 +1,4 @@
-import { type App, type MarkdownPostProcessorContext, TFile, TFolder } from 'obsidian';
+import { type App, type MarkdownPostProcessorContext, MarkdownRenderer, TFile, TFolder } from 'obsidian';
 import type { IndexType, PluginSettings } from '../type';
 
 import dayjs from 'dayjs';
@@ -180,6 +180,80 @@ export class File {
       filepath,
     );
 
+    ctx.addChild(component);
+  };
+
+  paraListByTime = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+    const filepath = ctx.sourcePath;
+    const tags = (this.tags(filepath) || []).filter(
+      (tag: string) => !['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].includes(tag.toLowerCase()),
+    );
+    const div = el.createEl('div');
+    const component = new Markdown(div);
+    const i18n = getI18n(this.locale);
+
+    if (!tags.length) {
+      const errorMsg = `> [!INFO]\n> ${i18n.PARA_NO_TAGS}`;
+      MarkdownRenderer.render(this.app, errorMsg, div, filepath, component);
+      ctx.addChild(component);
+      return;
+    }
+
+    const dataview = await this.plugin.getDataviewAPI();
+
+    const paraFolders = [
+      { path: this.settings.projectsPath, title: i18n.PARA_PROJECT_TITLE },
+      { path: this.settings.areasPath, title: i18n.PARA_AREA_TITLE },
+      { path: this.settings.resourcesPath, title: i18n.PARA_RESOURCE_TITLE },
+      { path: this.settings.archivesPath, title: i18n.PARA_ARCHIVE_TITLE },
+    ];
+
+    let foundAnything = false;
+    let markdown = '';
+
+    for (const folderConfig of paraFolders) {
+      if (!folderConfig.path) {
+        continue;
+      }
+
+      // Query pages in this folder
+      const pages = dataview.pages(`"${folderConfig.path}"`);
+
+      const matches = pages.filter((p: any) => {
+        let pageTags: any = p.file?.tags;
+        if (!pageTags) return false;
+        if (typeof pageTags.array === 'function') {
+          pageTags = pageTags.array();
+        }
+        if (!Array.isArray(pageTags)) {
+          return false;
+        }
+
+        const cleanPageTags = pageTags.map((tag: string) => tag.replace(/^#/, ''));
+        return cleanPageTags.some((tag: string) => tags.includes(tag));
+      });
+
+      if (matches.length > 0) {
+        markdown += `#### ${folderConfig.title}\n`;
+        const listStr = matches
+          .sort((a: any, b: any) => {
+            const timeA = a.file.mtime?.ts || a.file.mtime?.toMillis?.() || 0;
+            const timeB = b.file.mtime?.ts || b.file.mtime?.toMillis?.() || 0;
+            return timeB - timeA;
+          })
+          .map((p: any, index: number) => `${index + 1}. [[${p.file.path}|${p.file.name}]]`)
+          .join('\n');
+        markdown += `${listStr}\n\n`;
+        foundAnything = true;
+      }
+    }
+
+    if (!foundAnything) {
+      const formattedTags = tags.map((tag: string) => `#${tag}`).join(', ');
+      markdown = `> [!INFO]\n> ${i18n.PARA_NO_MATCHES.replace('{tags}', formattedTags)}`;
+    }
+
+    MarkdownRenderer.render(this.app, markdown, div, filepath, component);
     ctx.addChild(component);
   };
 }

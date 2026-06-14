@@ -88,6 +88,13 @@ const EN = {
   [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: 'Cannot find the specified header: ',
   [`${ERROR_MESSAGE}LIST_EMPTY`]: 'No items found under the specified header.',
 
+  PARA_PROJECT_TITLE: '🚀 Projects',
+  PARA_AREA_TITLE: '🎯 Areas',
+  PARA_RESOURCE_TITLE: '📚 Resources',
+  PARA_ARCHIVE_TITLE: '🗄️ Archives',
+  PARA_NO_TAGS: 'ℹ️ No tags found in the current note, cannot perform associated search.',
+  PARA_NO_MATCHES: 'ℹ️ No matching notes found in PARA folders for tags: ',
+
   SETTING_PERIODIC_NOTES: 'Periodic Notes',
   SETTING_PARA_NOTES: 'PARA Notes',
   SETTING_TURN_ON: 'Turn on',
@@ -235,6 +242,13 @@ const ZH = {
   [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: '找不到指定的标题：',
   [`${ERROR_MESSAGE}LIST_EMPTY`]: '在指定的标题下没有找到任何列表项。',
 
+  PARA_PROJECT_TITLE: '🚀 关联项目 (Projects)',
+  PARA_AREA_TITLE: '🎯 关联领域 (Areas)',
+  PARA_RESOURCE_TITLE: '📚 关联资源 (Resources)',
+  PARA_ARCHIVE_TITLE: '🗄️ 关联归档 (Archives)',
+  PARA_NO_TAGS: 'ℹ️ 今日笔记没有标签，无法进行关联搜索。',
+  PARA_NO_MATCHES: 'ℹ️ PARA 库中没有发现与今日标签 ({tags}) 匹配的笔记。',
+
   SETTING_PERIODIC_NOTES: '周期笔记',
   SETTING_PARA_NOTES: 'PARA 笔记',
   SETTING_TURN_ON: '开启',
@@ -375,6 +389,13 @@ const ZH_TW = {
   [`${ERROR_MESSAGE}NO_PERIODIC_FILES_FOUND`]: '在指定路徑下找不到週期筆記檔案，已嘗試查找以下路徑：\n',
   [`${ERROR_MESSAGE}HEADER_NOT_FOUND`]: '找不到指定的標題：',
   [`${ERROR_MESSAGE}LIST_EMPTY`]: '在指定的標題下沒有找到任何列表項。',
+
+  PARA_PROJECT_TITLE: '🚀 關聯專案 (Projects)',
+  PARA_AREA_TITLE: '🎯 關聯領域 (Areas)',
+  PARA_RESOURCE_TITLE: '📚 關聯資源 (Resources)',
+  PARA_ARCHIVE_TITLE: '🗄️ 關聯封存 (Archives)',
+  PARA_NO_TAGS: 'ℹ️ 今日筆記沒有標籤，無法進行關聯搜尋。',
+  PARA_NO_MATCHES: 'ℹ️ PARA 庫中沒有發現與今日標籤 ({tags}) 匹配的筆記。',
   SETTING_PERIODIC_NOTES: '週期筆記',
   SETTING_PARA_NOTES: 'PARA 筆記',
   SETTING_TURN_ON: '開啟',
