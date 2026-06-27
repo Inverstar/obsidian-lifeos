@@ -273,23 +273,27 @@ export class File {
       console.log(`ParaListByTime debug - Folder: "${folderConfig.path}", total pages found: ${pages.length}`);
 
       const matches = pages.filter((p: any) => {
-        let pageTags: any = p.file?.tags;
-        if (!pageTags) {
-          console.log(`Page ${p.file.path} has no p.file.tags`);
+        let pageAliases: any = p.file?.aliases;
+        if (!pageAliases) {
           return false;
         }
-        if (typeof pageTags.array === 'function') {
-          pageTags = pageTags.array();
+        if (typeof pageAliases.array === 'function') {
+          pageAliases = pageAliases.array();
         }
-        if (!Array.isArray(pageTags)) {
-          console.log(`Page ${p.file.path} pageTags is not an array:`, pageTags);
-          return false;
+        if (!Array.isArray(pageAliases)) {
+          if (typeof pageAliases === 'string') {
+            pageAliases = [pageAliases];
+          } else {
+            console.log(`Page ${p.file.path} pageAliases is not an array/string:`, pageAliases);
+            return false;
+          }
         }
 
-        const cleanPageTags = pageTags.map((tag: string) => tag.replace(/^#/, ''));
-        const matched = cleanPageTags.some((tag: string) => tags.includes(tag));
+        const cleanAliases = pageAliases.map((alias: string) => alias.replace(/^#/, '').toLowerCase());
+        const lowerTags = tags.map((t: string) => t.toLowerCase());
+        const matched = cleanAliases.some((alias: string) => lowerTags.includes(alias));
         if (matched) {
-          console.log(`Page ${p.file.path} MATCHED! cleanPageTags:`, cleanPageTags);
+          console.log(`Page ${p.file.path} MATCHED! cleanAliases:`, cleanAliases);
         }
         return matched;
       });
