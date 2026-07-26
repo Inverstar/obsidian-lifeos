@@ -1,4 +1,4 @@
-import { TFile, TFolder, type MarkdownPostProcessorContext, MarkdownRenderer } from 'obsidian';
+import { getAllTags, TFile, TFolder, type MarkdownPostProcessorContext, MarkdownRenderer } from 'obsidian';
 import { Markdown } from '../component/Markdown';
 import { Item } from './Item';
 
@@ -19,6 +19,34 @@ export class Archive extends Item {
   }
 
   /**
+   * Extract all tags for a given file (combines frontmatter tags and inline body tags).
+   */
+  private getNoteTags(file: TFile): string[] {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const rawAllTags = cache ? getAllTags(cache) || [] : [];
+    const frontmatterTags = this.file.tags(file.path) || [];
+
+    const allTags = new Set<string>();
+    for (const t of frontmatterTags) {
+      allTags.add(t.replace(/^#/, ''));
+    }
+    for (const t of rawAllTags) {
+      allTags.add(t.replace(/^#/, ''));
+    }
+    return Array.from(allTags);
+  }
+
+  /**
+   * Check if candidate file tag matches current note tag.
+   * Matches exact tag, parent tag, or child/nested tag (e.g. AI matches AI/agent and AI/mem/study).
+   */
+  private isTagMatch(fileTag: string, tag: string): boolean {
+    const f = fileTag.toLowerCase();
+    const t = tag.toLowerCase();
+    return f === t || f.startsWith(`${t}/`) || t.startsWith(`${f}/`);
+  }
+
+  /**
    * List archived files by tag.
    *
    * Usage in a LifeOS code block:
@@ -33,12 +61,12 @@ export class Archive extends Item {
    *
    * Filters:
    *   1. File must have frontmatter `isArchived: true`
-   *   2. If the current note has tags, candidate files must share a tag prefix.
+   *   2. If the current note has tags, candidate files must match hierarchically (e.g. AI matches AI/agent, AI/mem/study).
    */
   listByTag = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filepath = ctx.sourcePath;
     const currentFile = this.app.vault.getAbstractFileByPath(filepath);
-    const tags = this.file.tags(filepath) || [];
+    const tags = currentFile instanceof TFile ? this.getNoteTags(currentFile) : [];
 
     // Parse source lines:
     // line 0 is the view name ("ArchiveListByTag")
@@ -78,7 +106,7 @@ export class Archive extends Item {
     // Collect all markdown files recursively
     const allFiles = this.collectFiles(folder);
 
-    // Filter: isArchived: true + tag prefix match
+    // Filter: isArchived: true + tag hierarchy match
     const matchedFiles = allFiles.filter((file) => {
       // Exclude current note itself
       if (file.path === filepath) {
@@ -97,15 +125,15 @@ export class Archive extends Item {
         return false;
       }
 
-      // If current note has tags, require tag prefix match
+      // If current note has tags, require tag match
       if (tags.length > 0) {
-        const fileTags = this.file.tags(file.path) || [];
+        const fileTags = this.getNoteTags(file);
         if (!fileTags.length) return false;
 
         let hasMatch = false;
         for (const fileTag of fileTags) {
           for (const tag of tags) {
-            if (fileTag.toLowerCase().startsWith(tag.toLowerCase())) {
+            if (this.isTagMatch(fileTag, tag)) {
               hasMatch = true;
               break;
             }
