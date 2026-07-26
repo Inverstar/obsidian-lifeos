@@ -1,4 +1,4 @@
-import { type MarkdownPostProcessorContext, MarkdownRenderer, TFile, TFolder } from 'obsidian';
+import { TFile, TFolder, type MarkdownPostProcessorContext, MarkdownRenderer } from 'obsidian';
 import { Markdown } from '../component/Markdown';
 import { Item } from './Item';
 
@@ -21,44 +21,56 @@ export class Archive extends Item {
   /**
    * List archived files by tag.
    *
-   * Usage in a code block:
-   *   ```ArchiveListByTag
-   *   path/to/folder     ← optional, defaults to the current file's parent folder
+   * Usage in a LifeOS code block:
+   *   ```LifeOS
+   *   ArchiveListByTag
+   *   [optional custom directory]
    *   ```
+   *
+   * Lines in source:
+   *   line 0: "ArchiveListByTag" (view name parsed by LifeOS processor)
+   *   line 1: optional custom directory path (defaults to current file's parent folder)
    *
    * Filters:
    *   1. File must have frontmatter `isArchived: true`
-   *   2. If the current note has tags, the file's tags must share a common
-   *      prefix with the current note's tags (same logic as other ListByTag views).
+   *   2. If the current note has tags, candidate files must share a tag prefix.
    */
   listByTag = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filepath = ctx.sourcePath;
+    const currentFile = this.app.vault.getAbstractFileByPath(filepath);
     const tags = this.file.tags(filepath) || [];
 
-    // Parse source for an optional directory path (first non-empty line)
+    // Parse source lines:
+    // line 0 is the view name ("ArchiveListByTag")
+    // line 1+ is optional custom directory
     const lines = source
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean);
 
-    let searchDir: string;
+    const customDir = lines[1];
 
-    if (lines.length > 0) {
-      // User specified a directory
-      searchDir = lines[0];
-    } else {
-      // Default: current file's parent folder
-      const parts = filepath.split('/');
-      parts.pop();
-      searchDir = parts.join('/') || '/';
+    let folder: TFolder | null = null;
+    if (customDir) {
+      const target = this.app.vault.getAbstractFileByPath(customDir);
+      if (target instanceof TFolder) {
+        folder = target;
+      }
+    } else if (currentFile instanceof TFile && currentFile.parent) {
+      folder = currentFile.parent;
     }
 
-    const folder = this.app.vault.getAbstractFileByPath(searchDir);
     const div = el.createEl('div');
     const component = new Markdown(div);
 
-    if (!(folder instanceof TFolder)) {
-      MarkdownRenderer.render(this.app, `- Directory not found: ${searchDir}`, div, filepath, component);
+    if (!folder) {
+      MarkdownRenderer.render(
+        this.app,
+        `- Directory not found: ${customDir || filepath}`,
+        div,
+        filepath,
+        component,
+      );
       ctx.addChild(component);
       return;
     }
@@ -68,7 +80,7 @@ export class Archive extends Item {
 
     // Filter: isArchived: true + tag prefix match
     const matchedFiles = allFiles.filter((file) => {
-      // Exclude the current note itself
+      // Exclude current note itself
       if (file.path === filepath) {
         return false;
       }
@@ -76,22 +88,24 @@ export class Archive extends Item {
       const cache = this.app.metadataCache.getFileCache(file);
       const frontmatter = cache?.frontmatter;
 
-      // Must have isArchived: true
-      if (!frontmatter?.isArchived) {
+      // Check isArchived: true (supports boolean true or string 'true')
+      const isArchived =
+        frontmatter?.isArchived === true ||
+        String(frontmatter?.isArchived).toLowerCase() === 'true';
+
+      if (!isArchived) {
         return false;
       }
 
-      // If the current note has tags, require a tag prefix match
+      // If current note has tags, require tag prefix match
       if (tags.length > 0) {
-        let fileTags = frontmatter?.tags;
-        if (!fileTags) return false;
-        if (typeof fileTags === 'string') fileTags = [fileTags];
-        fileTags = (fileTags as string[]).map((t: string) => t.replace(/^#/, ''));
+        const fileTags = this.file.tags(file.path) || [];
+        if (!fileTags.length) return false;
 
         let hasMatch = false;
         for (const fileTag of fileTags) {
           for (const tag of tags) {
-            if (fileTag.startsWith(tag)) {
+            if (fileTag.toLowerCase().startsWith(tag.toLowerCase())) {
               hasMatch = true;
               break;
             }
