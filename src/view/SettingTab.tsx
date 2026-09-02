@@ -9,6 +9,7 @@ import type LifeOS from '../main';
 import type { PluginSettings } from '../type';
 
 export const DEFAULT_SETTINGS: PluginSettings = {
+  onboardingVersion: 0,
   locale: '',
   periodicNotesPath: 'PeriodicNotes',
   usePeriodicAdvanced: false,
