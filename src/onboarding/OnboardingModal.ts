@@ -1,37 +1,86 @@
 import dayjs from 'dayjs';
-import { Modal, Notice, Setting } from 'obsidian';
+import { Modal, Notice, Setting, TFile } from 'obsidian';
+import { QuickCaptureModal } from '../capture/QuickCaptureModal';
 import { DAILY } from '../constant';
 import { getFeatureI18n } from '../feature-i18n';
 import type LifeOS from '../main';
 import { createPeriodicFile } from '../util';
-import { type WorkspaceMode, getBasicTemplatePlans } from './templates';
-import { initializeWorkspace } from './workspace';
+import {
+  type WorkspaceLocale,
+  type WorkspaceMode,
+  getBasicTemplatePlans,
+  getLocalizedWorkspaceSettings,
+  getWorkspaceModeGuide,
+  normalizeWorkspaceLocale,
+} from './templates';
+import {
+  type WorkspaceProfile,
+  type WorkspaceSetupResult,
+  initializeWorkspace,
+  readWorkspaceProfile,
+  removeUntouchedExamples,
+} from './workspace';
 
 import './index.less';
 
 export class OnboardingModal extends Modal {
   private mode: WorkspaceMode;
+  private locale: WorkspaceLocale;
+  private includeExamples = true;
   private isWorking = false;
-  private previewEl?: HTMLElement;
+  private profile: WorkspaceProfile | null = null;
 
   constructor(private readonly plugin: LifeOS) {
     super(plugin.app);
     this.mode = plugin.settings.usePARANotes ? 'para' : 'periodic';
+    this.locale = normalizeWorkspaceLocale(plugin.getCurrentLocaleKey());
   }
 
   onOpen(): void {
-    const locale = this.plugin.getCurrentLocaleKey();
-    const t = getFeatureI18n(locale);
     this.modalEl.addClass('lifeos-onboarding-modal');
+    void this.prepare();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+
+  private async prepare(): Promise<void> {
+    this.profile = await readWorkspaceProfile(this.app);
+    if (this.profile) {
+      this.mode = this.profile.template;
+      this.locale = this.profile.locale;
+    }
+    this.renderSetup();
+  }
+
+  private renderSetup(): void {
+    const t = getFeatureI18n(this.locale);
+    this.contentEl.empty();
     this.setTitle(t.setupTitle);
+    this.contentEl.createEl('p', { cls: 'lifeos-onboarding-description', text: t.setupDescription });
 
-    this.contentEl.createEl('p', {
-      cls: 'lifeos-onboarding-description',
-      text: t.setupDescription,
-    });
+    if (this.profile) {
+      this.contentEl.createDiv({ cls: 'lifeos-onboarding-lock', text: t.setupLocked });
+    }
 
-    const modeSetting = new Setting(this.contentEl);
-    modeSetting
+    new Setting(this.contentEl)
+      .setName(t.setupLanguage)
+      .setDesc(t.setupLanguageDescription)
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('zh-cn', '简体中文')
+          .addOption('zh-tw', '繁體中文')
+          .addOption('en', 'English')
+          .setValue(this.locale)
+          .setDisabled(Boolean(this.profile))
+          .onChange((value) => {
+            this.locale = value as WorkspaceLocale;
+            this.renderSetup();
+          });
+      });
+
+    new Setting(this.contentEl)
       .setName(t.setupMode)
       .setDesc(this.mode === 'para' ? t.setupParaDescription : t.setupPeriodicOnlyDescription)
       .addDropdown((dropdown) => {
@@ -39,29 +88,42 @@ export class OnboardingModal extends Modal {
           .addOption('para', t.setupPara)
           .addOption('periodic', t.setupPeriodicOnly)
           .setValue(this.mode)
+          .setDisabled(Boolean(this.profile))
           .onChange((value) => {
             this.mode = value as WorkspaceMode;
-            modeSetting.setDesc(this.mode === 'para' ? t.setupParaDescription : t.setupPeriodicOnlyDescription);
-            this.renderPreview();
+            this.renderSetup();
           });
       });
 
-    this.contentEl.createDiv({
-      cls: 'lifeos-onboarding-safety',
-      text: t.setupSafety,
-    });
+    const guide = getWorkspaceModeGuide(this.mode, this.locale);
+    const guideEl = this.contentEl.createDiv({ cls: 'lifeos-onboarding-fit' });
+    this.addGuideRow(guideEl, t.setupBestFor, guide.bestFor);
+    this.addGuideRow(guideEl, t.setupNotFor, guide.notFor);
+    this.addGuideRow(guideEl, t.setupDailyFlow, guide.dailyFlow);
 
+    new Setting(this.contentEl)
+      .setName(t.setupIncludeExamples)
+      .setDesc(t.setupIncludeExamplesDescription)
+      .addToggle((toggle) => {
+        toggle.setValue(this.includeExamples).onChange((value) => {
+          this.includeExamples = value;
+          this.renderSetup();
+        });
+      });
+
+    this.contentEl.createDiv({ cls: 'lifeos-onboarding-safety', text: t.setupSafety });
     this.contentEl.createEl('h3', { text: t.setupPreview });
-    this.previewEl = this.contentEl.createEl('ul', { cls: 'lifeos-onboarding-preview' });
-    this.renderPreview();
+    const previewEl = this.contentEl.createEl('ul', { cls: 'lifeos-onboarding-preview' });
+    const previewSettings = this.getSetupSettings();
+    getBasicTemplatePlans(previewSettings, this.mode, this.locale, {
+      includeGuide: true,
+      includeExample: this.includeExamples,
+    }).forEach((plan) => previewEl.createEl('li', { text: plan.path }));
 
     new Setting(this.contentEl)
       .addButton((button) => {
         button.setButtonText(t.setupLater).onClick(async () => {
-          await this.plugin.saveSettings({
-            ...this.plugin.settings,
-            onboardingVersion: 1,
-          });
+          await this.plugin.saveSettings({ ...this.plugin.settings, onboardingVersion: 1 });
           this.close();
         });
       })
@@ -71,22 +133,22 @@ export class OnboardingModal extends Modal {
           .setButtonText(t.setupSubmit)
           .onClick(async () => {
             if (this.isWorking) return;
-
             this.isWorking = true;
             button.setDisabled(true).setButtonText(t.setupWorking);
-
             try {
               const settings = {
-                ...this.plugin.settings,
+                ...this.getSetupSettings(),
                 onboardingVersion: 1,
                 usePeriodicNotes: true,
                 usePARANotes: this.mode === 'para',
               };
-              const result = await initializeWorkspace(this.app, settings, this.mode, locale);
+              const result = await initializeWorkspace(this.app, settings, this.mode, this.locale, {
+                includeExamples: this.includeExamples,
+              });
               await this.plugin.saveSettings(settings);
-              await createPeriodicFile(dayjs(), DAILY, settings, this.app, false, locale);
+              await createPeriodicFile(dayjs(), DAILY, settings, this.app, false, this.locale);
               new Notice(t.setupSuccess(result.created.length, result.skipped.length));
-              this.close();
+              this.renderCompletion(result);
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);
               new Notice(`${t.setupFailed}: ${message}`);
@@ -97,16 +159,61 @@ export class OnboardingModal extends Modal {
       });
   }
 
-  onClose(): void {
-    this.contentEl.empty();
+  private addGuideRow(parent: HTMLElement, label: string, value: string): void {
+    const row = parent.createDiv({ cls: 'lifeos-onboarding-fit-row' });
+    row.createEl('strong', { text: label });
+    row.createEl('span', { text: value });
   }
 
-  private renderPreview(): void {
-    if (!this.previewEl) return;
+  private getSetupSettings() {
+    if (this.profile) return this.plugin.settings;
+    return getLocalizedWorkspaceSettings(this.plugin.settings, this.locale);
+  }
 
-    this.previewEl.empty();
-    getBasicTemplatePlans(this.plugin.settings, this.mode, this.plugin.getCurrentLocaleKey()).forEach((plan) => {
-      this.previewEl?.createEl('li', { text: plan.path });
+  private renderCompletion(result: WorkspaceSetupResult): void {
+    const t = getFeatureI18n(this.locale);
+    this.contentEl.empty();
+    this.setTitle(t.setupCompleteTitle);
+    this.contentEl.createEl('p', { cls: 'lifeos-onboarding-description', text: t.setupCompleteDescription });
+
+    const summary = this.contentEl.createDiv({ cls: 'lifeos-onboarding-summary' });
+    summary.createEl('strong', { text: t.setupSuccess(result.created.length, result.skipped.length) });
+    summary.createEl('span', { text: result.startPath });
+
+    const actions = this.contentEl.createDiv({ cls: 'lifeos-onboarding-actions' });
+    this.addAction(actions, t.setupOpenGuide, async () => {
+      await this.openPath(result.startPath);
+      this.close();
     });
+    this.addAction(actions, t.setupOpenToday, async () => {
+      await createPeriodicFile(dayjs(), DAILY, this.plugin.settings, this.app, false, this.locale);
+      this.close();
+    });
+    this.addAction(actions, t.setupQuickRecord, async () => {
+      this.close();
+      new QuickCaptureModal(this.plugin, 'record').open();
+    });
+    this.addAction(actions, t.setupQuickTask, async () => {
+      this.close();
+      new QuickCaptureModal(this.plugin, 'task').open();
+    });
+
+    if (result.examplePaths.length > 0) {
+      this.addAction(actions, t.setupRemoveExamples, async (button) => {
+        const cleanup = await removeUntouchedExamples(this.app, this.mode, this.locale);
+        new Notice(cleanup.removed.length > 0 ? t.setupExamplesRemoved : t.setupExamplesPreserved);
+        if (cleanup.removed.length > 0) button.remove();
+      });
+    }
+  }
+
+  private addAction(parent: HTMLElement, label: string, action: (button: HTMLButtonElement) => Promise<void>): void {
+    const button = parent.createEl('button', { cls: 'mod-cta', text: label });
+    button.addEventListener('click', () => void action(button));
+  }
+
+  private async openPath(path: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
 }
