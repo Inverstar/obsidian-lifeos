@@ -156,10 +156,13 @@ export default class LifeOS extends Plugin {
           this.settings.archivesPath,
         ];
 
-        const parentPath = file.parent?.path;
-        if (!parentPath || !paraFolders.includes(parentPath)) return;
+        const currentParaFolder = paraFolders.find(
+          (folder) => file.path === folder || file.path.startsWith(`${folder}/`),
+        );
+        if (!currentParaFolder || file.path === currentParaFolder) return;
 
-        const targetFolders = paraFolders.filter((f) => f !== parentPath);
+        const targetFolders = paraFolders.filter((f) => f !== currentParaFolder);
+        const relativePath = file.path.substring(currentParaFolder.length + 1);
 
         targetFolders.forEach((targetFolder) => {
           menu.addItem((item) => {
@@ -168,8 +171,20 @@ export default class LifeOS extends Plugin {
               .setSection('lifeos')
               .setIcon('folder-tree')
               .setTitle(`${i18n.MOVE_TO} "${targetFolder}"`)
-              .onClick(() => {
-                this.app.fileManager.renameFile(file, `${targetFolder}/${file.name}`);
+              .onClick(async () => {
+                const targetPath = `${targetFolder}/${relativePath}`;
+                const targetParent = targetPath.split('/').slice(0, -1).join('/');
+                if (targetParent) {
+                  const segments = targetParent.split('/').filter(Boolean);
+                  let curr = '';
+                  for (const seg of segments) {
+                    curr = curr ? `${curr}/${seg}` : seg;
+                    if (!this.app.vault.getAbstractFileByPath(curr)) {
+                      await this.app.vault.createFolder(curr);
+                    }
+                  }
+                }
+                this.app.fileManager.renameFile(file, targetPath);
               });
           });
         });

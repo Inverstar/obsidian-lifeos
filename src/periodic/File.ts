@@ -33,11 +33,22 @@ export class File {
     return false;
   }
 
+  private collectSubFolders(folder: TFolder): TFolder[] {
+    const subFolders: TFolder[] = [];
+    for (const child of folder.children) {
+      if (child instanceof TFolder) {
+        subFolders.push(child);
+        subFolders.push(...this.collectSubFolders(child));
+      }
+    }
+    return subFolders;
+  }
+
   list(fileFolder: string, condition: { tags: string[] } = { tags: [] }) {
     const folder = this.app.vault.getAbstractFileByPath(fileFolder);
 
     if (folder instanceof TFolder) {
-      const subFolderList = folder.children.filter((file) => file instanceof TFolder);
+      const subFolderList = this.collectSubFolders(folder);
       const IndexList = subFolderList
         .map((subFolder) => {
           // 优先搜索同名文件，否则搜索 XXX.README
@@ -54,7 +65,11 @@ export class File {
               }
 
               if (indexType === 'folderName') {
-                if ((file as any).basename === name) {
+                if (
+                  (file as any).basename === name ||
+                  (file as any).basename === subFolder.name ||
+                  (file as any).basename.endsWith(`-${name}`)
+                ) {
                   return true;
                 }
               }
@@ -80,12 +95,18 @@ export class File {
             }
 
             if (!indexFile) {
-              logMessage(`${getI18n(this.locale)[`${ERROR_MESSAGE}NO_INDEX_FILE_EXIST`]} @ ${subFolder.path}`);
+              const hasChildFolder = subFolder.children.some((c) => c instanceof TFolder);
+              if (!hasChildFolder) {
+                logMessage(`${getI18n(this.locale)[`${ERROR_MESSAGE}NO_INDEX_FILE_EXIST`]} @ ${subFolder.path}`);
+              }
             }
 
             if (indexFile instanceof TFile) {
               const link = this.app.metadataCache.fileToLinktext(indexFile, indexFile?.path);
-              return `[[${link}|${subFolder.name}]]`;
+              const relativeFolder = subFolder.path.startsWith(`${fileFolder}/`)
+                ? subFolder.path.substring(fileFolder.length + 1)
+                : subFolder.name;
+              return `[[${link}|${relativeFolder}]]`;
             }
           }
         })

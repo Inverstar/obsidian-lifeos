@@ -321,8 +321,9 @@ export const CreateNote = (props: { width: number }) => {
     let file = '';
     let tag = '';
     let INDEX = '';
-    const path = settings[`${paraActiveTab.toLocaleLowerCase()}sPath` as keyof PluginSettings]; // settings.archivesPath;
-    const key = values[`${paraActiveTab}Folder`]; // values.archiveFolder;
+    const path = (settings[`${paraActiveTab.toLocaleLowerCase()}sPath` as keyof PluginSettings] as string) || '';
+    const rawKey = values[`${paraActiveTab}Folder`] || '';
+    const key = rawKey.replace(/^\/+|\/+$/g, '');
     tag = values[`${paraActiveTab}Tag`]; // values.archiveTag;
     INDEX = values[`${paraActiveTab}Index`]; // values.archiveIndex;
 
@@ -330,7 +331,7 @@ export const CreateNote = (props: { width: number }) => {
       return new Notice(localeMap[`${ERROR_MESSAGE}TAGS_MUST_INPUT`]);
     }
 
-    folder = `${path}/${key}`;
+    folder = key ? `${path}/${key}` : path;
     file = `${folder}/${INDEX}`;
     templateFile = settings.usePARAAdvanced
       ? settings[`${paraActiveTab.toLocaleLowerCase()}sTemplateFilePath` as PeriodicNotesTemplateFilePath] ||
@@ -356,12 +357,11 @@ export const CreateNote = (props: { width: number }) => {
 
   const singleClickRef = useRef<number | null>(null);
   const handleTagInput = (item: string) => {
-    const itemTag = form.getFieldValue(`${item}Tag`).replace(/^#/, '');
-    const itemFolder = itemTag.split('/')[0];
-    const itemIndex =
-      settings?.paraIndexFilename === 'readme'
-        ? `${itemTag.split('/').reverse()[0]}.README`
-        : `${itemTag.replace(/\//g, '-')}`;
+    const rawTag = form.getFieldValue(`${item}Tag`) || '';
+    const itemTag = rawTag.replace(/^#/, '').replace(/^\/+|\/+$/g, '');
+    const itemFolder = itemTag;
+    const leafName = itemTag.split('/').filter(Boolean).reverse()[0] || itemTag;
+    const itemIndex = settings?.paraIndexFilename === 'readme' ? `${leafName}.README` : leafName;
 
     form.setFieldValue(`${item}Folder`, itemFolder);
     form.setFieldValue(`${item}Index`, itemIndex ? `${itemIndex}.md` : '');
