@@ -3,7 +3,9 @@ import type { App, MarkdownPostProcessorContext, Menu, PluginManifest, TAbstract
 import { type DataviewApi, getAPI, isPluginEnabled } from 'obsidian-dataview';
 
 import dayjs from 'dayjs';
+import { QuickCaptureModal } from './capture/QuickCaptureModal';
 import { DAILY, ERROR_MESSAGE, MONTHLY, QUARTERLY, WEEKLY, YEARLY } from './constant';
+import { getFeatureI18n } from './feature-i18n';
 import { Archive } from './para/Archive';
 import { Area } from './para/Area';
 import { Project } from './para/Project';
@@ -30,6 +32,7 @@ import 'dayjs/locale/zh';
 import 'dayjs/locale/zh-tw';
 import type { Locale } from 'antd/es/locale';
 import { getAntdLocale, getDayjsLocale, getI18n, getLocale } from './i18n';
+import { OnboardingModal } from './onboarding/OnboardingModal';
 
 import './index.less';
 
@@ -51,6 +54,9 @@ export default class LifeOS extends Plugin {
   dailyRecordRibbonItem?: HTMLElement;
   locale: Locale;
   i18n: Record<string, string>;
+  private isFreshInstall = false;
+  private onboardingModal?: OnboardingModal;
+  private quickCaptureModal?: QuickCaptureModal;
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -115,6 +121,7 @@ export default class LifeOS extends Plugin {
       name: this.i18n.COMMAND_LIFEOS_GUIDE,
       callback: () => openOfficialSite(this.getCurrentLocaleKey()),
     });
+    this.registerWorkspaceCommands();
     this.loadHelpers();
     this.loadGlobalHelpers();
     this.loadViews();
@@ -129,6 +136,12 @@ export default class LifeOS extends Plugin {
     this.loadDailyRecord();
     this.registerFileMenu();
     this.addSettingTab(new SettingTabView(this.app, this.settings, this, this.locale));
+
+    this.app.workspace.onLayoutReady(() => {
+      if (this.isFreshInstall && this.settings.onboardingVersion === 0) {
+        this.openOnboarding();
+      }
+    });
   }
   registerFileMenu() {
     this.registerEvent(
@@ -226,6 +239,8 @@ export default class LifeOS extends Plugin {
   onunload() {
     clearTimeout(this.timeout);
     clearInterval(this.interval);
+    this.onboardingModal?.close();
+    this.quickCaptureModal?.close();
   }
 
   markdownCodeBlockProcessor = (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -258,7 +273,13 @@ export default class LifeOS extends Plugin {
   };
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const savedSettings = await this.loadData();
+    this.isFreshInstall = !savedSettings || Object.keys(savedSettings).length === 0;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings);
+
+    if (!this.isFreshInstall && this.settings.onboardingVersion === 0) {
+      this.settings.onboardingVersion = 1;
+    }
     this.syncLocale(this.settings.locale);
   }
 
@@ -329,5 +350,37 @@ export default class LifeOS extends Plugin {
 
   getCurrentLocaleKey() {
     return this.settings?.locale || getLocale();
+  }
+
+  private registerWorkspaceCommands() {
+    const t = getFeatureI18n(this.getCurrentLocaleKey());
+
+    this.addCommand({
+      id: 'periodic-para-initialize-workspace',
+      name: t.setupCommand,
+      callback: () => this.openOnboarding(),
+    });
+    this.addCommand({
+      id: 'periodic-para-quick-record',
+      name: t.quickRecordCommand,
+      callback: () => this.openQuickCapture('record'),
+    });
+    this.addCommand({
+      id: 'periodic-para-quick-task',
+      name: t.quickTaskCommand,
+      callback: () => this.openQuickCapture('task'),
+    });
+  }
+
+  private openOnboarding() {
+    this.onboardingModal?.close();
+    this.onboardingModal = new OnboardingModal(this);
+    this.onboardingModal.open();
+  }
+
+  private openQuickCapture(kind: 'record' | 'task') {
+    this.quickCaptureModal?.close();
+    this.quickCaptureModal = new QuickCaptureModal(this, kind);
+    this.quickCaptureModal.open();
   }
 }

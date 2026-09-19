@@ -18,6 +18,11 @@
 
 ## Features
 
+- 首次启用时提供初始化向导，可选择“周期笔记 + PARA”或“仅周期笔记”，并以简体中文、繁体中文或英文生成工作区。初始化后会保留所选方案，后续修复不会覆盖已有文件。
+- 内置日、周、月、季度、年度以及 Projects、Areas、Resources、Archives 基础模板。
+- 可选示例工作流与五分钟完成指南会引导用户完成首次记录；示例未被修改时可以安全移除。
+- 在命令面板中使用“快速记录”或“快速任务”，可直接写入今日日记的 `Daily Record` 区域。
+- 继续使用 Dataview 作为查询引擎；启用 LifeOS 前请先安装并启用 Dataview。
 - LifeOS Basic: https://lifeos.vip/plugin/lifeos/life-os.html
 - **LifeOS Pro** : https://lifeos.vip/plugin/lifeos/life-os-pro.html
 - **DeepAsk AI Assistant** : https://lifeos.vip/plugin/deepask/deepask.html

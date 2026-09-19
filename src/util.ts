@@ -1,5 +1,5 @@
 import dayjs, { type Dayjs } from 'dayjs';
-import { Component, MarkdownRenderer, Notice, TFile, moment } from 'obsidian';
+import { Component, MarkdownRenderer, Notice, TFile, TFolder, moment } from 'obsidian';
 import type { App } from 'obsidian';
 import {
   DAILY,
@@ -27,6 +27,21 @@ export function renderError(app: App, msg: string, containerEl: HTMLElement, sou
   const component = new Component();
 
   return MarkdownRenderer.render(app, msg, containerEl, sourcePath, component);
+}
+
+async function ensureFolderTree(app: App, folder: string): Promise<void> {
+  const segments = folder.split('/').filter(Boolean);
+  let currentPath = '';
+
+  for (const segment of segments) {
+    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+    const existing = app.vault.getAbstractFileByPath(currentPath);
+
+    if (existing instanceof TFolder) continue;
+    if (existing) throw new Error(`A file already exists where a folder is required: ${currentPath}`);
+
+    await app.vault.createFolder(currentPath);
+  }
 }
 
 export async function createFile(
@@ -62,20 +77,11 @@ export async function createFile(
     const tFile = app.vault.getAbstractFileByPath(finalFile);
 
     if (tFile && tFile instanceof TFile) {
-      return await app.workspace.getLeaf(newLeaf).openFile(tFile);
+      await app.workspace.getLeaf(newLeaf).openFile(tFile);
+      return tFile;
     }
 
-    if (!app.vault.getAbstractFileByPath(folder)) {
-      const parts = folder.split('/');
-      let currentPath = '';
-      for (const part of parts) {
-        if (!part) continue;
-        currentPath = currentPath ? `${currentPath}/${part}` : part;
-        if (!app.vault.getAbstractFileByPath(currentPath)) {
-          await app.vault.createFolder(currentPath);
-        }
-      }
-    }
+    await ensureFolderTree(app, folder);
 
     const fileCreated = await app.vault.create(finalFile, templateContent);
 
@@ -90,6 +96,7 @@ export async function createFile(
     });
     await sleep(30); // 等待被索引，否则读取不到 frontmatter：this.app.metadataCache.getFileCache(file)
     await app.workspace.getLeaf(newLeaf).openFile(fileCreated);
+    return fileCreated;
   }
 }
 
@@ -236,7 +243,7 @@ export async function createPeriodicFile(
   app: App | undefined,
   newLeaf: boolean = false,
   locale?: string,
-): Promise<void> {
+): Promise<TFile | void> {
   if (!app || !settings.periodicNotesPath) {
     return;
   }
@@ -273,13 +280,15 @@ export async function createPeriodicFile(
     ? settings[`periodicNotesTemplateFilePath${periodType}` as PeriodicNotesTemplateFilePath] ||
       `${settings.periodicNotesPath}/Templates/${periodType}.md`
     : `${settings.periodicNotesPath}/Templates/${periodType}.md`;
-  await createFile(app, {
+  const fileCreated = await createFile(app, {
     locale: locale || getLocale(),
     templateFile,
     folder,
     file,
     newLeaf,
   });
+
+  return fileCreated instanceof TFile ? fileCreated : undefined;
 }
 
 export function openOfficialSite(locale: string) {

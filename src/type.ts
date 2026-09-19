@@ -11,6 +11,7 @@ export type PeriodicNotesTemplateFilePath =
 export type IndexType = 'readme' | 'folderName';
 
 export type PluginSettings = {
+  onboardingVersion: number;
   locale: string;
   periodicNotesPath: string;
   usePeriodicAdvanced: boolean;

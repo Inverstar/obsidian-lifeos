@@ -18,6 +18,11 @@
 
 ## Features
 
+- A first-run setup wizard can create a periodic-notes workspace with or without PARA in English, Simplified Chinese, or Traditional Chinese. The selected workspace profile is kept for future repairs, and existing files are never overwritten.
+- Built-in starter templates cover daily, weekly, monthly, quarterly, yearly, Projects, Areas, Resources, and Archives notes.
+- An optional example workflow and a five-minute completion guide help you make the first capture; the example can be removed safely while it remains unchanged.
+- Use **Quick record** and **Quick task** from the command palette to capture directly into today's `Daily Record` section.
+- Dataview remains the query engine and must be installed and enabled before LifeOS.
 - LifeOS Basic: https://lifeos.vip/plugin/lifeos/life-os.html
 - **LifeOS Pro** : https://lifeos.vip/plugin/lifeos/life-os-pro.html
 - **DeepAsk AI for Obsidian** : https://lifeos.vip/plugin/deepask/deepask.html
