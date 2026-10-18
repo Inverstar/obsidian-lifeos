@@ -5,6 +5,7 @@ import { identifyTheme } from '../capture/theme-model';
 import { themeIndexStyle, isThemeIndex } from '../theme/config';
 import { themeTags } from '../capture/theme-model';
 import { type App, type MarkdownPostProcessorContext, MarkdownRenderer, TFile, TFolder } from 'obsidian';
+import { Markdown } from '../component/Markdown';
 import type { IndexType, PluginSettings } from '../type';
 
 import dayjs from 'dayjs';

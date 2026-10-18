@@ -335,6 +335,7 @@ export const CreateNote = (props: { width: number }) => {
       form.resetFields();
     } catch (error) {
       new Notice(error instanceof Error ? error.message : themeSettingsMessages(localeKey).failed);
+    }
   };
 
   // all tags
