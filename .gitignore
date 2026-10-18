@@ -34,3 +34,7 @@ obsidian-lifeos-*
 
 # Local promotional drafts and scratch material
 .tmp/
+
+# AI Context cache (PCMP §3 & §6)
+ai/.cache/
+
