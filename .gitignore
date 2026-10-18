@@ -26,9 +26,8 @@ data.json
 CLAUDE.md
 .claude
 
-# LifeOS upstream version directories
-obsidian-lifeos-*/
-*.zip
+# LifeOS upstream version directories and archives
+obsidian-lifeos-*
 
 # Isolated runtime evidence and scratch vaults
 .verify/
