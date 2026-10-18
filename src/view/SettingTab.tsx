@@ -10,6 +10,7 @@ import type { PluginSettings } from '../type';
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   onboardingVersion: 0,
+  quickCaptureDefaultThemes: [],
   locale: '',
   periodicNotesPath: 'PeriodicNotes',
   usePeriodicAdvanced: false,
@@ -37,6 +38,13 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   dailyRecordCreating: false,
   useDailyRecord: false,
   usePeriodicNotes: true,
+  useThemeNotes: true,
+  useThemeFolderSync: true,
+  themesPath: 'Themes',
+  themesTemplateFilePath: '',
+  useThemeAdvanced: false,
+  themeIndexFilename: 'readme',
+  useThemeSearch: true,
   usePARANotes: true,
   usePARAAdvanced: false,
   paraIndexFilename: 'readme',
@@ -63,6 +71,7 @@ export class SettingTabView extends PluginSettingTab {
   }
 
   display(): void {
+    this.settings = this.plugin.settings;
     this.containerEl.empty();
     this.containerEl.addClass('periodic-para-setting-tab');
     this.locale = this.plugin.locale;

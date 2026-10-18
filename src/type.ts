@@ -12,6 +12,7 @@ export type IndexType = 'readme' | 'folderName';
 
 export type PluginSettings = {
   onboardingVersion: number;
+  quickCaptureDefaultThemes: string[];
   locale: string;
   periodicNotesPath: string;
   usePeriodicAdvanced: boolean;
@@ -34,6 +35,13 @@ export type PluginSettings = {
   dailyRecordCreating: boolean;
   useDailyRecord: boolean;
   usePeriodicNotes: boolean;
+  useThemeNotes: boolean;
+  useThemeFolderSync: boolean;
+  themesPath: string;
+  themesTemplateFilePath: string;
+  useThemeAdvanced: boolean;
+  themeIndexFilename: IndexType;
+  useThemeSearch: boolean;
   usePARANotes: boolean;
   usePARAAdvanced: boolean;
   paraIndexFilename: IndexType;

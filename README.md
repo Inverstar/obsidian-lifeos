@@ -1,4 +1,4 @@
-<p align="center"><a title="中文版本" href="https://github.com/quanru/obsidian-example-lifeos/tree/chinese-version">中文版本</a>  |  English Version</p>
+<p align="center"><a title="中文版本" href="https://github.com/quanru/obsidian-example-lifeos/tree/main/examples/zh-cn">中文版本</a>  |  English Version</p>
 
 <a href="https://obsidian.md/blog/2024-goty-winners/">🔥 LifeOS for Obsidian won the third place 🥉 in the Best Templates category at the 2024 Obsidian Gems of the Year awards!</a>
 
@@ -16,13 +16,31 @@
 
 ![](https://obsidian-life-os.pages.dev/plugin/periodic-para-plugin-en.png)
 
+The starter workflow now supports ten languages (English, Simplified and Traditional Chinese, German, Spanish, French, Portuguese, Japanese, Korean, Arabic), including workspace setup, quick capture, templates, and folder settings. See [multilingual workspace maintenance](docs/multilingual-workspaces.md).
+
+Get started with [the capture guide](docs/getting-started.en.md) ([中文](docs/getting-started.md)).
+
+Task, record and resource queries require **Dataview** to be installed and enabled separately. Quick capture, theme creation and native theme lists work without it. See [dependency guidance and query upgrades](docs/theme-notes.en.md#dataview-and-empty-results).
+
+## Theme notes, with or without PARA
+
+Enable Theme notes independently of PARA. Create tagged theme folders and index notes, associate quick captures, query tasks, records and files, and generate theme snapshots in daily notes. README and folder-name indexes, templates, list search and optional name synchronization are supported. See the [theme guide](docs/theme-notes.en.md). The example repository includes plain-theme example and blank vaults in all ten languages. Existing PARA configuration and notes are preserved.
+
+## Free tools and the independent Pro plugin
+
+Quick capture, basic task entry, topic links remain fully free. Settings → **Usage and upgrade** offers shortcuts, a read-only preview of your folder settings, and an optional, collapsed comparison of calendar planning, advanced lists and project workflow scenarios with the independently paid LifeOS Pro plugin. This plugin does not contain paid unlocks or automatically install Pro. Its new promotional section does not fetch remote ads, send telemetry, or upload notes; opening the website is optional and includes only a fixed channel parameter. Existing optional usememos integration is configured separately.
+
+LifeOS Pro alone does not include AI: AI requires the separate DeepAsk plugin and a supported model service or CLI configured by the user. See [when Pro helps](docs/pro-handover.en.md).
+
+Use the **Today’s records** command to open today's daily note at the record section. See the [handover guide](docs/pro-handover.md) before switching plugins. Pro source code, private configuration and activation data are not part of this repository.
+
 ## Features
 
-- A first-run setup wizard can create a periodic-notes workspace with or without PARA in English, Simplified Chinese, or Traditional Chinese. The selected workspace profile is kept for future repairs, and existing files are never overwritten.
+- A first-run setup wizard can create a periodic-notes workspace with or without PARA in any of the ten supported languages. The selected workspace profile is kept for future repairs, and existing files are never overwritten.
 - Built-in starter templates cover daily, weekly, monthly, quarterly, yearly, Projects, Areas, Resources, and Archives notes.
 - An optional example workflow and a five-minute completion guide help you make the first capture; the example can be removed safely while it remains unchanged.
-- Use **Quick record** and **Quick task** from the command palette to capture directly into today's `Daily Record` section.
-- Dataview remains the query engine and must be installed and enabled before LifeOS.
+- **Quick record** and **Quick task** support continuous capture, native live preview, images, checklists, PARA theme associations, history, combined filters, and safe editing. Everything stays in daily-note Markdown. See the [quick capture guide (Chinese)](docs/quick-capture.md).
+- Query views use Dataview. Setup and quick capture work without it.
 - LifeOS Basic: https://lifeos.vip/plugin/lifeos/life-os.html
 - **LifeOS Pro** : https://lifeos.vip/plugin/lifeos/life-os-pro.html
 - **DeepAsk AI for Obsidian** : https://lifeos.vip/plugin/deepask/deepask.html
@@ -31,7 +49,13 @@
 
 ## Download
 
-- [LifeOS-example](https://github.com/quanru/obsidian-example-lifeos) | [中文版本](https://github.com/quanru/obsidian-example-lifeos/tree/chinese-version)
+- [LifeOS-example](https://github.com/quanru/obsidian-example-lifeos) | [中文版本](https://github.com/quanru/obsidian-example-lifeos/tree/main/examples/zh-cn)
+
+## Development and contributions
+
+See the [contribution guide](CONTRIBUTING.md) and [community tasks](docs/community-tasks.md). Requires Obsidian 1.4.0 or newer.
+
+Setup and quick capture work without Dataview. Query views still require Dataview and show installation, enablement, or indexing guidance.
 
 ## Support
 

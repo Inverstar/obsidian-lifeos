@@ -1,18 +1,21 @@
-import type { App, MarkdownPostProcessorContext, Plugin } from 'obsidian';
+import { renderMissingThemeTags } from '../dependencies/query-help';
+import { matchesThemeTag } from '../theme/tag-match';
+import type { App, MarkdownPostProcessorContext } from 'obsidian';
 import type { TaskResult } from 'obsidian-dataview/lib/api/plugin-api';
+import { renderThemeQuerySummary } from '../theme/query-summary';
+import { themeRowFilter } from '../theme/query-filter';
 import type { PluginSettings, TaskConditionType } from '../type';
+import { presentCaptureTask } from './task-presentation';
 
 import { moment } from 'obsidian';
-import type { DataviewApi, STask } from 'obsidian-dataview';
-import { ERROR_MESSAGE } from '../constant';
+import type { STask } from 'obsidian-dataview';
 import { TaskStatusType } from '../type';
 
-import { Markdown } from '../component/Markdown';
-import { getI18n } from '../i18n';
+import { renderTaskQuery } from '../component/TaskQuery';
 import type LifeOS from '../main';
 import { Date as PeriodicDate } from '../periodic/Date';
 import { File } from '../periodic/File';
-import { generateIgnoreOperator, renderError } from '../util';
+import { generateIgnoreOperator } from '../util';
 
 export class Task {
   app: App;
@@ -39,23 +42,26 @@ export class Task {
       return;
     }
 
-    const dataview = await this.plugin.getDataviewAPI();
-    const tasks = dataview
-      .pages('')
-      .file.tasks.where((t: STask) =>
-        this.filter(t, {
-          status: TaskStatusType.DONE,
-          ...condition,
-        }),
-      )
-      .sort((t: STask) => t.completion, 'asc');
+    return renderTaskQuery(
+      this.app,
+      el,
+      ctx,
+      async (div, component) => {
+        const dataview = await this.plugin.getDataviewAPI();
+        const tasks = dataview
+          .pages('')
+          .file.tasks.where((t: STask) =>
+            this.filter(t, {
+              status: TaskStatusType.DONE,
+              ...condition,
+            }),
+          )
+          .sort((t: STask) => t.completion, 'asc');
 
-    const div = el.createEl('div');
-    const component = new Markdown(div);
-
-    dataview.taskList(tasks, false, div, component);
-
-    ctx.addChild(component);
+        await dataview.taskList(tasks.map(presentCaptureTask), false, div, component, filename);
+      },
+      this.locale,
+    );
   };
 
   recordListByTime = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -67,70 +73,86 @@ export class Task {
       return;
     }
 
-    const dataview = await this.plugin.getDataviewAPI();
-    let tasks = [];
-    // 收集日期范围内的日记文件
-    const dailyTasks = dataview.pages('').file.tasks.where((t: STask) =>
-      this.filter(t, {
-        status: TaskStatusType.RECORD,
-        ...condition,
-      }),
+    return renderTaskQuery(
+      this.app,
+      el,
+      ctx,
+      async (div, component) => {
+        const dataview = await this.plugin.getDataviewAPI();
+        let tasks = [];
+        // 收集日期范围内的日记文件
+        const dailyTasks = dataview.pages('').file.tasks.where((t: STask) =>
+          this.filter(t, {
+            status: TaskStatusType.RECORD,
+            ...condition,
+          }),
+        );
+
+        tasks = [...dailyTasks];
+
+        // 收集日期范围内的非日记文件（周记、月记、季记、年记）
+        const files = this.date.files(parsed);
+        const { weeks, months, quarters } = files;
+        const pages = [...weeks, ...months, ...quarters];
+
+        if (pages.length) {
+          const nonDailyTasks = dataview.pages(`"${pages.join('" or "')}"`).file.tasks;
+
+          tasks = [...dailyTasks, ...nonDailyTasks];
+        }
+
+        await dataview.taskList(tasks.map(presentCaptureTask), false, div, component, filename);
+      },
+      this.locale,
     );
-
-    tasks = [...dailyTasks];
-
-    // 收集日期范围内的非日记文件（周记、月记、季记、年记）
-    const files = this.date.files(parsed);
-    const { weeks, months, quarters } = files;
-    const pages = [...weeks, ...months, ...quarters];
-
-    if (pages.length) {
-      const nonDailyTasks = dataview.pages(`"${pages.join('" or "')}"`).file.tasks;
-
-      tasks = [...dailyTasks, ...nonDailyTasks];
-    }
-
-    const div = el.createEl('div');
-    const component = new Markdown(div);
-
-    dataview.taskList(tasks, false, div, component);
-
-    ctx.addChild(component);
   };
 
   listByTag = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filepath = ctx.sourcePath;
-    const tags = this.file.tags(filepath);
-    const div = el.createEl('div');
-    const component = new Markdown(div);
+    return renderTaskQuery(
+      this.app,
+      el,
+      ctx,
+      async (div, component) => {
+        const tags = this.file.tags(filepath);
 
-    if (!tags.length) {
-      return renderError(this.app, getI18n(this.locale)[`${ERROR_MESSAGE}NO_FRONT_MATTER_TAG`], div, filepath);
-    }
+        if (!tags.length) {
+          return renderMissingThemeTags(this.app, div, filepath, this.locale);
+        }
 
-    const from = tags
-      .map((tag: string, index: number) => {
-        return `#${tag} ${index === tags.length - 1 ? '' : 'OR'}`;
-      })
-      .join(' ')
-      .trim();
-    const where = tags
-      .map((tag: string, index: number) => {
-        return `contains(lower(tags), "#${tag.toLowerCase()}") ${index === tags.length - 1 ? '' : 'OR'}`;
-      })
-      .join(' ');
-
-    const dataview = await this.plugin.getDataviewAPI();
-    const { values: tasks } = (await dataview.tryQuery(`
+        const from = tags
+          .map((tag: string, index: number) => {
+            return `#${tag} ${index === tags.length - 1 ? '' : 'OR'}`;
+          })
+          .join(' ')
+          .trim();
+        const dataview = await this.plugin.getDataviewAPI();
+        const { values: tasks } = (await dataview.tryQuery(`
 TASK
 FROM (${from}) ${generateIgnoreOperator(this.settings)}
-WHERE ${where} AND file.path != "${filepath}"
+WHERE file.path != "${filepath}"
 SORT status ASC
     `)) as TaskResult;
 
-    dataview.taskList(tasks, false, div, component);
-
-    ctx.addChild(component);
+        const allowed = await themeRowFilter(
+          this.app,
+          this.settings,
+          tasks.map((task: STask) => task.path),
+          filepath,
+        );
+        const openOnly = source === 'TaskOpenListByTag';
+        const keep = (task: STask) =>
+          allowed(task) && matchesThemeTag(task.tags, tags) && (!openOnly || !task.completed);
+        const present = (task: STask): STask => ({
+          ...presentCaptureTask(task),
+          children: task.children.filter(keep).map(present),
+        });
+        const matches = tasks.filter(keep);
+        renderThemeQuerySummary(div, this.locale, tags, matches.length, openOnly ? 'open' : 'tasks');
+        if (matches.length) await dataview.taskList(matches.map(present), false, div, component, filepath);
+      },
+      this.locale,
+    );
   };
 
   filter(

@@ -1,3 +1,8 @@
+import { themeTemplatePaths } from './theme/config';
+import { themeSnapshot } from './theme/catalog';
+import { themeSettingsMessages } from './theme/messages';
+import { buildPeriodicFilePath, joinVaultPath } from './periodic/paths';
+export { isInPeriodicNote, isInPeriodicNotesFolder, joinVaultPath } from './periodic/paths';
 import dayjs, { type Dayjs } from 'dayjs';
 import { Component, MarkdownRenderer, Notice, TFile, TFolder, moment } from 'obsidian';
 import type { App } from 'obsidian';
@@ -15,6 +20,9 @@ import {
   WEEKLY,
   YEARLY,
 } from './constant';
+import { periodicLocation } from './periodic/calendar';
+import { withVaultLock } from './vault-lock';
+import { createFromTemplate } from './dependencies/template-creation';
 import { getDayjsLocale, getI18n, getLocale, normalizeLocale } from './i18n';
 import type { DailyRecordType, DailyRecordTypeV2, PeriodicNotesTemplateFilePath, ResourceType } from './type';
 import { LogLevel, type PluginSettings } from './type';
@@ -44,7 +52,7 @@ async function ensureFolderTree(app: App, folder: string): Promise<void> {
   }
 }
 
-export async function createFile(
+async function createFileUnlocked(
   app: App,
   options: {
     locale: string;
@@ -53,6 +61,9 @@ export async function createFile(
     file: string;
     tag?: string;
     newLeaf?: boolean;
+    requireNew?: boolean;
+    fallbackContent?: string;
+    snapshotContent?: string;
   },
 ) {
   if (!app) {
@@ -60,44 +71,46 @@ export async function createFile(
   }
 
   const { templateFile, folder, file, tag, locale, newLeaf } = options;
-  const templateTFile = app.vault.getAbstractFileByPath(templateFile!);
   const finalFile = file.match(/\.md$/) ? file : `${file}.md`;
-
-  if (!templateTFile) {
-    return new Notice(getI18n(locale)[`${ERROR_MESSAGE}NO_TEMPLATE_EXIST`] + templateFile);
+  const existing = app.vault.getAbstractFileByPath(finalFile);
+  if (existing && options.requireNew) throw new Error(themeSettingsMessages(locale).conflict);
+  if (existing instanceof TFile) {
+    await app.workspace.getLeaf(newLeaf).openFile(existing);
+    return existing;
   }
-
-  if (templateTFile instanceof TFile) {
-    const templateContent = await app.vault.cachedRead(templateTFile);
-
-    if (!folder || !finalFile) {
-      return;
-    }
-
-    const tFile = app.vault.getAbstractFileByPath(finalFile);
-
-    if (tFile && tFile instanceof TFile) {
-      await app.workspace.getLeaf(newLeaf).openFile(tFile);
-      return tFile;
-    }
-
+  if (existing) throw new Error(`A folder already exists where a note is required: ${finalFile}`);
+  const templateTFile = app.vault.getAbstractFileByPath(templateFile);
+  if (!(templateTFile instanceof TFile) && options.fallbackContent === undefined) {
+    new Notice(getI18n(locale)[`${ERROR_MESSAGE}NO_TEMPLATE_EXIST`] + templateFile);
+    return;
+  }
+  if (folder && finalFile) {
+    const templateContent = (
+      templateTFile instanceof TFile ? await app.vault.cachedRead(templateTFile) : options.fallbackContent!
+    ).replaceAll('{{snapshot:Theme}}', options.snapshotContent ?? '');
     await ensureFolderTree(app, folder);
 
-    const fileCreated = await app.vault.create(finalFile, templateContent);
+    const fileCreated =
+      templateTFile instanceof TFile
+        ? await createFromTemplate(app, templateTFile, templateContent, finalFile)
+        : await app.vault.create(finalFile, templateContent);
 
-    await app.fileManager.processFrontMatter(fileCreated, (frontMatter) => {
-      if (!tag) {
-        return;
-      }
-
-      frontMatter.tags = frontMatter.tags || [];
-      frontMatter.tags.push(tag.replace(/^#/, ''));
-      frontMatter.aliases = tag.replace(/^#/, '');
-    });
+    if (tag) {
+      await app.fileManager.processFrontMatter(fileCreated, (frontMatter) => {
+        const tags = frontMatter.tags;
+        frontMatter.tags = Array.isArray(tags) ? tags : tags ? [tags] : [];
+        frontMatter.tags.push(tag.replace(/^#/, ''));
+        frontMatter.aliases = tag.replace(/^#/, '');
+      });
+    }
     await sleep(30); // 等待被索引，否则读取不到 frontmatter：this.app.metadataCache.getFileCache(file)
     await app.workspace.getLeaf(newLeaf).openFile(fileCreated);
     return fileCreated;
   }
+}
+
+export function createFile(app: App, options: Parameters<typeof createFileUnlocked>[1]) {
+  return withVaultLock(app.vault, () => createFileUnlocked(app, options));
 }
 
 export function isDarkTheme() {
@@ -251,41 +264,18 @@ export async function createPeriodicFile(
   const effectiveLocale = getDayjsLocale(locale || getLocale());
   const date = dayjs(day.format()).locale(effectiveLocale);
 
-  let templateFile = '';
-  let folder = '';
-  let file = '';
-
-  const year = date.format('YYYY');
-  let value;
-
-  if (periodType === DAILY) {
-    folder = `${settings.periodicNotesPath}/${year}/${periodType}/${String(date.month() + 1).padStart(2, '0')}`;
-    value = date.format(settings.dailyNoteFormat || 'YYYY-MM-DD');
-  } else if (periodType === WEEKLY) {
-    folder = `${settings.periodicNotesPath}/${date.format('gggg')}/${periodType}`;
-    value = date.format(settings.weeklyNoteFormat || 'gggg-[W]ww');
-  } else if (periodType === MONTHLY) {
-    folder = `${settings.periodicNotesPath}/${year}/${periodType}`;
-    value = date.format(settings.monthlyNoteFormat || 'YYYY-MM');
-  } else if (periodType === QUARTERLY) {
-    folder = `${settings.periodicNotesPath}/${year}/${periodType}`;
-    value = date.format(settings.quarterlyNoteFormat || 'YYYY-[Q]Q');
-  } else if (periodType === YEARLY) {
-    folder = `${settings.periodicNotesPath}/${year}`;
-    value = settings.yearlyNoteFormat ? date.format(settings.yearlyNoteFormat) : year;
-  }
-
-  file = `${folder}/${value}.md`;
-  templateFile = settings.usePeriodicAdvanced
+  const { folder, file } = periodicLocation(date, periodType, settings);
+  const templateFile = settings.usePeriodicAdvanced
     ? settings[`periodicNotesTemplateFilePath${periodType}` as PeriodicNotesTemplateFilePath] ||
-      `${settings.periodicNotesPath}/Templates/${periodType}.md`
-    : `${settings.periodicNotesPath}/Templates/${periodType}.md`;
+      joinVaultPath(settings.periodicNotesPath, 'Templates', `${periodType}.md`)
+    : joinVaultPath(settings.periodicNotesPath, 'Templates', `${periodType}.md`);
   const fileCreated = await createFile(app, {
     locale: locale || getLocale(),
     templateFile,
     folder,
     file,
     newLeaf,
+    snapshotContent: settings.useThemeNotes && !settings.usePARANotes ? themeSnapshot(app, settings) : undefined,
   });
 
   return fileCreated instanceof TFile ? fileCreated : undefined;
@@ -310,12 +300,13 @@ export function generateIgnoreOperator(settings: PluginSettings) {
   } = settings;
 
   return [
-    `${periodicNotesPath}/Templates`,
+    joinVaultPath(periodicNotesPath, 'Templates'),
     periodicNotesTemplateFilePathYearly,
     periodicNotesTemplateFilePathQuarterly,
     periodicNotesTemplateFilePathMonthly,
     periodicNotesTemplateFilePathWeekly,
     periodicNotesTemplateFilePathDaily,
+    ...themeTemplatePaths(settings),
   ]
     .filter((path) => path)
     .map((path) => `AND -"${path}"`)
@@ -329,6 +320,7 @@ export function getAllTemplateFiles(settings: PluginSettings) {
     areasTemplateFilePath,
     resourcesTemplateFilePath,
     archivesTemplateFilePath,
+    themesTemplateFilePath,
     periodicNotesPath,
     periodicNotesTemplateFilePathYearly,
     periodicNotesTemplateFilePathQuarterly,
@@ -339,11 +331,12 @@ export function getAllTemplateFiles(settings: PluginSettings) {
 
   return [
     'Template.md',
-    `${periodicNotesPath}/Templates`,
+    joinVaultPath(periodicNotesPath, 'Templates'),
     projectsTemplateFilePath,
     areasTemplateFilePath,
     resourcesTemplateFilePath,
     archivesTemplateFilePath,
+    themesTemplateFilePath,
     periodicNotesTemplateFilePathYearly,
     periodicNotesTemplateFilePathQuarterly,
     periodicNotesTemplateFilePathMonthly,
@@ -354,16 +347,6 @@ export function getAllTemplateFiles(settings: PluginSettings) {
 
 export function isInTemplateNote(path: string, settings: PluginSettings) {
   return getAllTemplateFiles(settings).some((template) => path.includes(template));
-}
-
-export function isInPeriodicNote(path: string, settings: PluginSettings) {
-  return (
-    path?.match(new RegExp(`${settings.periodicNotesPath}/${FULL_YEARLY_REG.source}`)) ||
-    path?.match(new RegExp(`${settings.periodicNotesPath}/${FULL_QUARTERLY_REG.source}`)) ||
-    path?.match(new RegExp(`${settings.periodicNotesPath}/${FULL_MONTHLY_REG.source}`)) ||
-    path?.match(new RegExp(`${settings.periodicNotesPath}/${FULL_WEEKLY_REG.source}`)) ||
-    path?.match(new RegExp(`${settings.periodicNotesPath}/${FULL_DAILY_REG.source}`))
-  );
 }
 
 export const getFirstDay = (weekStart = -1, locale: string | undefined) => {

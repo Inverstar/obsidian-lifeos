@@ -1,3 +1,8 @@
+import { ThemeCreateFields } from '../../theme/ThemeCreateFields';
+import { createThemeNote } from '../../theme/create';
+import { themeSettingsMessages } from '../../theme/messages';
+import { themeIndexStyle } from '../../theme/config';
+import { buildPeriodicFilePath } from '../../periodic/paths';
 import { PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Form, Input, Radio, Tabs, Tooltip } from 'antd';
 import dayjs from 'dayjs';
@@ -27,7 +32,15 @@ import {
   YEARLY_REG,
 } from '../../constant';
 import type { PeriodicNotesTemplateFilePath, PluginSettings } from '../../type';
-import { createFile, createPeriodicFile, getFirstDay, openOfficialSite } from '../../util';
+import { isoWeekRange, isoWeeklyFormat } from '../../periodic/calendar';
+import {
+  createFile,
+  createPeriodicFile,
+  getFirstDay,
+  isInPeriodicNote,
+  isInPeriodicNotesFolder,
+  openOfficialSite,
+} from '../../util';
 import './index.less';
 import { useApp } from '../../hooks/useApp';
 import { getDayjsLocale, getI18n, getLocale, normalizeLocale } from '../../i18n';
@@ -74,17 +87,7 @@ export const CreateNote = (props: { width: number }) => {
       <Button htmlType="submit" type="primary" shape="circle" size="large" icon={<PlusOutlined />}></Button>
     </Form.Item>
   );
-  const [existsDates, setExistsDates] = useState<(string | undefined)[]>(
-    app?.vault
-      .getAllLoadedFiles()
-      .filter(
-        (file) =>
-          settings?.periodicNotesPath &&
-          file.path.indexOf(settings?.periodicNotesPath) === 0 &&
-          (file as { extension?: string }).extension === 'md',
-      )
-      .map((file) => (file as { basename?: string }).basename) || [],
-  );
+  const [existingPaths, setExistingPaths] = useState<string[]>([]);
 
   useDocumentEvent('settingUpdate', (event) => {
     setSettings(event.detail);
@@ -92,23 +95,24 @@ export const CreateNote = (props: { width: number }) => {
   });
 
   useEffect(() => {
-    // 已存在的日记高亮
+    const isTracked = (file: TFile) => file.extension === 'md' && isInPeriodicNotesFolder(file.path, settings);
+    setExistingPaths(
+      app?.vault
+        .getMarkdownFiles()
+        .filter(isTracked)
+        .map((file) => file.path) || [],
+    );
     const createHandler = (file: TFile) => {
-      if (file instanceof TFile) {
-        setExistsDates((prevDates) => [file.basename, ...prevDates]);
-      }
+      if (file instanceof TFile && isTracked(file)) setExistingPaths((paths) => [...paths, file.path]);
     };
-
     const deleteHandler = (file: TFile) => {
-      if (file instanceof TFile) {
-        setExistsDates((prevDates) => prevDates.filter((date) => date !== file.basename));
-      }
+      setExistingPaths((paths) => paths.filter((path) => path !== file.path));
     };
-
     const renameHandler = (file: TFile, oldPath: string) => {
-      if (file instanceof TFile) {
-        setExistsDates((prevDates) => [file.basename, ...prevDates.filter((date) => date !== oldPath)]);
-      }
+      setExistingPaths((paths) => [
+        ...paths.filter((path) => path !== oldPath),
+        ...(file instanceof TFile && isTracked(file) ? [file.path] : []),
+      ]);
     };
 
     app?.vault.on('create', createHandler);
@@ -120,14 +124,14 @@ export const CreateNote = (props: { width: number }) => {
       app?.vault.off('delete', deleteHandler);
       app?.vault.off('rename', renameHandler);
     };
-  }, []);
+  }, [app, settings?.periodicNotesPath]);
 
   useEffect(() => {
     // 切换文件时，切换表单
     const leafChangeHandler = (leaf: WorkspaceLeaf) => {
       const { path, basename } = (leaf?.view as any).file || {};
 
-      if (!path || path.indexOf(settings?.periodicNotesPath) !== 0) {
+      if (!settings || !isInPeriodicNote(path, settings)) {
         return;
       }
 
@@ -150,11 +154,9 @@ export const CreateNote = (props: { width: number }) => {
               });
             } else if (periodicType === WEEKLY) {
               const [year, week] = dateValue.split('-W');
-              const weeklyDate = dayjs()
-                .year(Number.parseInt(year))
-                .startOf('year')
-                .isoWeek(Number.parseInt(week))
-                .startOf('isoWeek');
+              const range = isoWeekRange(Number.parseInt(year), Number.parseInt(week));
+              if (!range.from) continue;
+              const weeklyDate = dayjs(range.from);
               form.setFieldsValue({
                 [WEEKLY]: weeklyDate.locale(dayjsLocale),
               });
@@ -238,7 +240,7 @@ export const CreateNote = (props: { width: number }) => {
         badgeText = `${date.date()}`;
         break;
       case 'week':
-        formattedDate = date.format(settings?.weeklyNoteFormat || 'gggg-[W]ww');
+        formattedDate = date.format(isoWeeklyFormat(settings?.weeklyNoteFormat || 'gggg-[W]ww'));
         badgeText = `${date.date()}`;
         break;
       case 'month':
@@ -281,7 +283,16 @@ export const CreateNote = (props: { width: number }) => {
       </>
     );
 
-    if (existsDates.includes(formattedDate)) {
+    const periodType =
+      { date: DAILY, week: WEEKLY, month: MONTHLY, quarter: QUARTERLY, year: YEARLY, decade: YEARLY }[picker] || DAILY;
+    const expectedPath = buildPeriodicFilePath(
+      settings?.periodicNotesPath || '',
+      date.format(periodType === WEEKLY ? 'gggg' : 'YYYY'),
+      periodType,
+      formattedDate,
+      String(date.month() + 1).padStart(2, '0'),
+    );
+    if (settings?.periodicNotesPath && existingPaths.includes(expectedPath)) {
       if (picker !== 'week') {
         return (
           <div className="ant-picker-cell-inner" onClick={(e) => onClick(value, e)}>
@@ -311,41 +322,19 @@ export const CreateNote = (props: { width: number }) => {
     );
   };
 
-  const createPARAFile = async (values: any) => {
-    if (!app || !settings) {
-      return;
-    }
-
-    let templateFile = '';
-    let folder = '';
-    let file = '';
-    let tag = '';
-    let INDEX = '';
-    const path = (settings[`${paraActiveTab.toLocaleLowerCase()}sPath` as keyof PluginSettings] as string) || '';
-    const rawKey = values[`${paraActiveTab}Folder`] || '';
-    const key = rawKey.replace(/^\/+|\/+$/g, '');
-    tag = values[`${paraActiveTab}Tag`]; // values.archiveTag;
-    INDEX = values[`${paraActiveTab}Index`]; // values.archiveIndex;
-
-    if (!tag) {
-      return new Notice(localeMap[`${ERROR_MESSAGE}TAGS_MUST_INPUT`]);
-    }
-
-    folder = key ? `${path}/${key}` : path;
-    file = `${folder}/${INDEX}`;
-    templateFile = settings.usePARAAdvanced
-      ? settings[`${paraActiveTab.toLocaleLowerCase()}sTemplateFilePath` as PeriodicNotesTemplateFilePath] ||
-        `${path}/Template.md`
-      : `${path}/Template.md`;
-
-    await createFile(app, {
-      locale: localeKey,
-      templateFile,
-      folder,
-      file,
-      tag,
-    });
-    form.resetFields();
+  const createPARAFile = async (values: Record<string, string>) => {
+    if (!app || !settings) return;
+    const kind = settings.usePARANotes ? paraActiveTab.toLowerCase() : 'theme';
+    const prefix = settings.usePARANotes ? paraActiveTab : 'Theme';
+    try {
+      await createThemeNote(app, settings, localeKey, kind, {
+        tag: values[`${prefix}Tag`],
+        folder: values[`${prefix}Folder`],
+        index: values[`${prefix}Index`],
+      });
+      form.resetFields();
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : themeSettingsMessages(localeKey).failed);
   };
 
   // all tags
@@ -357,11 +346,12 @@ export const CreateNote = (props: { width: number }) => {
 
   const singleClickRef = useRef<number | null>(null);
   const handleTagInput = (item: string) => {
-    const rawTag = form.getFieldValue(`${item}Tag`) || '';
+    const rawTag = String(form.getFieldValue(`${item}Tag`) || '');
     const itemTag = rawTag.replace(/^#/, '').replace(/^\/+|\/+$/g, '');
     const itemFolder = itemTag;
     const leafName = itemTag.split('/').filter(Boolean).reverse()[0] || itemTag;
-    const itemIndex = settings?.paraIndexFilename === 'readme' ? `${leafName}.README` : leafName;
+    const itemIndex =
+      settings && themeIndexStyle(settings) === 'readme' ? `${leafName}.README` : leafName;
 
     form.setFieldValue(`${item}Folder`, itemFolder);
     form.setFieldValue(`${item}Index`, itemIndex ? `${itemIndex}.md` : '');
@@ -399,7 +389,7 @@ export const CreateNote = (props: { width: number }) => {
         onFinish={createPARAFile}
         layout="vertical"
       >
-        {settings?.usePARANotes && settings?.usePeriodicNotes && (
+        {settings?.useThemeNotes && settings?.usePeriodicNotes && (
           <Radio.Group
             name="type"
             value={type}
@@ -411,7 +401,9 @@ export const CreateNote = (props: { width: number }) => {
             }}
           >
             <Radio.Button value={PERIODIC}>{localeMap[PERIODIC]}</Radio.Button>
-            <Radio.Button value={PARA}>{localeMap[PARA]}</Radio.Button>
+            <Radio.Button value={PARA}>
+              {settings?.usePARANotes ? localeMap[PARA] : themeSettingsMessages(localeKey).title}
+            </Radio.Button>
           </Radio.Group>
         )}
         {type === PERIODIC && settings?.usePeriodicNotes && (
@@ -458,6 +450,9 @@ export const CreateNote = (props: { width: number }) => {
                         return cellRender(value, info.type);
                       }}
                       picker={picker}
+                      format={
+                        picker === 'week' ? isoWeeklyFormat(settings?.weeklyNoteFormat || 'gggg-[W]ww') : undefined
+                      }
                       showNow={false}
                       style={{ width: 200 }}
                       inputReadOnly
@@ -470,87 +465,41 @@ export const CreateNote = (props: { width: number }) => {
             })}
           ></Tabs>
         )}
-        {type === PARA && settings?.usePARANotes && (
+        {type === PARA && settings?.useThemeNotes && (
           <>
-            <Tabs
-              key="PARA"
-              activeKey={paraActiveTab}
-              onChange={setParaActiveTab}
-              centered
-              size="small"
-              indicator={{ size: 0 }}
-              style={{ width: '100%' }}
-              items={[PROJECT, AREA, RESOURCE, ARCHIVE].map((para) => {
-                const label = localeMap[para];
-
-                return {
-                  label,
+            {settings.usePARANotes ? (
+              <Tabs
+                key="PARA"
+                activeKey={paraActiveTab}
+                onChange={setParaActiveTab}
+                centered
+                size="small"
+                indicator={{ size: 0 }}
+                style={{ width: '100%' }}
+                items={[PROJECT, AREA, RESOURCE, ARCHIVE].map((para) => ({
+                  label: localeMap[para],
                   key: para,
                   children:
                     paraActiveTab === para ? (
-                      <>
-                        <Form.Item
-                          label={localeMap[TAG]}
-                          name={`${para}Tag`}
-                          tooltip={localeMap[`${TAG}ToolTip`]}
-                          rules={[
-                            {
-                              required: true,
-                              message: localeMap[`${TAG}Required`],
-                            },
-                            {
-                              pattern: /^[^\s]*$/,
-                              message: localeMap[`${TAG}Required2`],
-                            },
-                            {
-                              pattern: /^#/,
-                              message: localeMap[`${TAG}Required3`],
-                            },
-                          ]}
-                        >
-                          <AutoComplete options={tags} onSelect={() => handleTagInput(para)}>
-                            <Input
-                              onChange={() => handleTagInput(para)}
-                              allowClear
-                              placeholder={
-                                para === PROJECT
-                                  ? localeMap.PARA_TAG_PLACEHOLDER_PROJECT
-                                  : localeMap.PARA_TAG_PLACEHOLDER_DEFAULT
-                              }
-                            />
-                          </AutoComplete>
-                        </Form.Item>
-                        <Form.Item
-                          label={localeMap[FOLDER]}
-                          name={`${para}Folder`}
-                          tooltip={localeMap[`${FOLDER}ToolTip`]}
-                          rules={[
-                            {
-                              required: true,
-                              message: localeMap[`${FOLDER}Required`],
-                            },
-                          ]}
-                        >
-                          <Input type="text" allowClear placeholder={localeMap.PARA_FOLDER_PLACEHOLDER} />
-                        </Form.Item>
-                        <Form.Item
-                          label={localeMap[INDEX]}
-                          name={`${para}Index`}
-                          tooltip={localeMap[`${INDEX}ToolTip`]}
-                          rules={[
-                            {
-                              required: true,
-                              message: localeMap[`${INDEX}Required`],
-                            },
-                          ]}
-                        >
-                          <Input allowClear placeholder={localeMap.PARA_INDEX_PLACEHOLDER} />
-                        </Form.Item>
-                      </>
+                      <ThemeCreateFields
+                        prefix={para}
+                        locale={localeKey}
+                        form={form}
+                        tags={tags}
+                        onTag={() => handleTagInput(para)}
+                      />
                     ) : null,
-                };
-              })}
-            ></Tabs>
+                }))}
+              />
+            ) : (
+              <ThemeCreateFields
+                prefix="Theme"
+                locale={localeKey}
+                form={form}
+                tags={tags}
+                onTag={() => handleTagInput('Theme')}
+              />
+            )}
             {SubmitButton}
           </>
         )}

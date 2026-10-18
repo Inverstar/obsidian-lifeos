@@ -1,6 +1,16 @@
-import { Platform, Plugin, TFile, setIcon } from 'obsidian';
-import type { App, MarkdownPostProcessorContext, Menu, PluginManifest, TAbstractFile, WorkspaceLeaf } from 'obsidian';
-import { type DataviewApi, getAPI, isPluginEnabled } from 'obsidian-dataview';
+import { openCommunityPluginSettings, queryHelpMessages } from './dependencies/query-help';
+import { registerThemeUpgrade } from './theme/ThemeUpgradeModal';
+import { Notice, Platform, Plugin, TFile, setIcon } from 'obsidian';
+import type { MarkdownPostProcessorContext, Menu, TAbstractFile, WorkspaceLeaf } from 'obsidian';
+import type { DataviewApi } from 'obsidian-dataview';
+import { QueryIndexWait } from './dependencies/QueryIndexWait';
+import { dataviewState, waitForDataview } from './dependencies/dataview';
+import { dependencyMessages } from './dependencies/messages';
+import { GlobalHelperPublisher, registerQueryLanguages } from './integration';
+import { Theme } from './theme/Theme';
+import { migrateThemeSettings } from './theme/config';
+import { ThemeRenameSync } from './theme/rename';
+import './dependencies/index.less';
 
 import dayjs from 'dayjs';
 import { QuickCaptureModal } from './capture/QuickCaptureModal';
@@ -15,8 +25,8 @@ import { DailyRecord } from './periodic/DailyRecord';
 import { Date as PeriodicDate } from './periodic/Date';
 import { File } from './periodic/File';
 import { Task } from './periodic/Task';
-import { LogLevel, type PluginSettings } from './type';
-import { createPeriodicFile, logMessage, openOfficialSite, renderError } from './util';
+import type { PluginSettings } from './type';
+import { createPeriodicFile, openOfficialSite, renderError } from './util';
 import { CREATE_NOTE, CreateNoteView } from './view/CreateNote';
 import { SettingTabView } from './view/SettingTab';
 import { DEFAULT_SETTINGS } from './view/SettingTab';
@@ -25,6 +35,7 @@ import 'dayjs/locale/de';
 import 'dayjs/locale/es';
 import 'dayjs/locale/fr';
 import 'dayjs/locale/ja';
+import 'dayjs/locale/ko';
 import 'dayjs/locale/pt';
 import 'dayjs/locale/pt-br';
 import 'dayjs/locale/zh-cn';
@@ -35,9 +46,12 @@ import { getAntdLocale, getDayjsLocale, getI18n, getLocale } from './i18n';
 import { OnboardingModal } from './onboarding/OnboardingModal';
 
 import './index.less';
+import { productMessages } from './product/messages';
+import { openTodayRecords } from './product/today';
 
 export default class LifeOS extends Plugin {
   settings: PluginSettings;
+  theme: Theme;
   project: Project;
   area: Area;
   resource: Resource;
@@ -46,7 +60,6 @@ export default class LifeOS extends Plugin {
   file: File;
   bullet: Bullet;
   date: PeriodicDate;
-  dataview: DataviewApi;
   views: Record<string, (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext, folder?: string) => void>;
   dailyRecord: DailyRecord;
   timeout: NodeJS.Timeout;
@@ -57,44 +70,21 @@ export default class LifeOS extends Plugin {
   private isFreshInstall = false;
   private onboardingModal?: OnboardingModal;
   private quickCaptureModal?: QuickCaptureModal;
-
-  constructor(app: App, manifest: PluginManifest) {
-    super(app, manifest);
-    this.registerEvent(
-      this.app.metadataCache.on('dataview:index-ready' as 'changed', () => {
-        this.dataview = getAPI(this.app);
-      }),
-    );
-
-    if (!isPluginEnabled(app)) {
-      logMessage(getI18n(getLocale())[`${ERROR_MESSAGE}NO_DATAVIEW_INSTALL`], LogLevel.error);
-      return;
-    }
-
-    this.app = app;
-    this.dataview = this.dataview ?? getAPI(app);
-  }
+  private globalHelpers = new GlobalHelperPublisher(
+    window as unknown as { LifeOSOpen?: unknown; LifeOS?: unknown; PeriodicPARA?: unknown },
+  );
 
   getDataviewAPI(): Promise<DataviewApi> {
-    return new Promise((resolve) => {
-      if (this.dataview) {
-        resolve(this.dataview);
-        return;
-      }
+    return waitForDataview(this.app, () => this.dataviewMessage());
+  }
 
-      const eventRef = this.app.metadataCache.on('dataview:index-ready' as 'changed', () => {
-        this.app.metadataCache.offref(eventRef);
-        resolve(getAPI(this.app));
-      });
-
-      setTimeout(() => {
-        resolve(getAPI(this.app));
-      }, 15 * 1000);
-    });
+  private dataviewMessage(): string {
+    return dependencyMessages(this.getCurrentLocaleKey())[dataviewState(this.app)];
   }
 
   async onload() {
     await this.loadSettings();
+    this.register(() => this.globalHelpers.clear());
     this.registerView(CREATE_NOTE, (leaf) => {
       return new CreateNoteView(leaf, this.settings, this.locale, this);
     });
@@ -122,19 +112,30 @@ export default class LifeOS extends Plugin {
       callback: () => openOfficialSite(this.getCurrentLocaleKey()),
     });
     this.registerWorkspaceCommands();
+    registerThemeUpgrade(this);
+    this.addRibbonIcon('message-square-text', getFeatureI18n(this.getCurrentLocaleKey()).quickRecordTitle, () =>
+      this.openQuickCapture('record'),
+    );
     this.loadHelpers();
     this.loadGlobalHelpers();
     this.loadViews();
 
-    try {
-      this.registerMarkdownCodeBlockProcessor('LifeOS', this.markdownCodeBlockProcessor);
-      this.registerMarkdownCodeBlockProcessor('PeriodicPARA', this.markdownCodeBlockProcessor); // for backward compatibility
-    } catch (error) {
-      logMessage(error, LogLevel.error);
-      return;
-    }
+    registerQueryLanguages((language) =>
+      this.registerMarkdownCodeBlockProcessor(language, this.markdownCodeBlockProcessor),
+    );
     this.loadDailyRecord();
     this.registerFileMenu();
+    const themeRename = new ThemeRenameSync(
+      this.app,
+      () => this.settings,
+      () => this.getCurrentLocaleKey(),
+    );
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        // Finish the originating rename before starting another file-manager operation.
+        this.registerInterval(window.setTimeout(() => void themeRename.handle(file, oldPath), 0));
+      }),
+    );
     this.addSettingTab(new SettingTabView(this.app, this.settings, this, this.locale));
 
     this.app.workspace.onLayoutReady(() => {
@@ -237,12 +238,15 @@ export default class LifeOS extends Plugin {
       ParaListByTime: this.file.paraListByTime,
       // views by tag -> topic context -> para
       TaskListByTag: this.task.listByTag,
+      TaskOpenListByTag: this.task.listByTag,
       BulletListByTag: this.bullet.listByTag,
       FileListByTag: this.file.listByTag,
       ProjectListByTag: this.project.listByTag,
       AreaListByTag: this.area.listByTag,
       ResourceListByTag: this.resource.listByTag,
       ArchiveListByTag: this.archive.listByTag,
+      ThemeListByTag: this.theme.listByTag,
+      ThemeListByFolder: this.theme.listByFolder,
       // views by folder
       ProjectListByFolder: this.project.listByFolder,
       AreaListByFolder: this.area.listByFolder,
@@ -284,13 +288,33 @@ export default class LifeOS extends Plugin {
 
     const callback = this.views[view] || this.views[legacyView];
 
-    return callback(source, el, ctx);
+    if (!view.endsWith('ByFolder') && view !== 'ThemeListByTag' && dataviewState(this.app) !== 'ready') {
+      const container = el.createDiv({ cls: 'lifeos-dependency-message' });
+      container.createEl('p', { text: this.dataviewMessage() });
+      const state = dataviewState(this.app);
+      if (state === 'missing' || state === 'disabled') {
+        const settings = container.createEl('button', { text: queryHelpMessages(localeKey).plugins });
+        settings.onclick = () => openCommunityPluginSettings(this.app, localeKey);
+      }
+      const button = container.createEl('button', { text: dependencyMessages(localeKey).retry });
+      const waiting = new QueryIndexWait(container, this.app, () => {
+        el.empty();
+        void this.markdownCodeBlockProcessor(source, el, ctx);
+      });
+      button.addEventListener('click', waiting.retry);
+      ctx.addChild(waiting);
+      return;
+    }
+    return Promise.resolve(callback(source, el, ctx)).catch(() => {
+      el.empty();
+      el.createEl('p', { text: this.dataviewMessage() });
+    });
   };
 
   async loadSettings() {
     const savedSettings = await this.loadData();
     this.isFreshInstall = !savedSettings || Object.keys(savedSettings).length === 0;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings, migrateThemeSettings(savedSettings));
 
     if (!this.isFreshInstall && this.settings.onboardingVersion === 0) {
       this.settings.onboardingVersion = 1;
@@ -316,6 +340,7 @@ export default class LifeOS extends Plugin {
     this.date = new PeriodicDate(this.app, this.settings, this.file, localeKey);
     this.bullet = new Bullet(this.app, this.settings, this, localeKey);
 
+    this.theme = new Theme(this.app, this.settings, localeKey);
     this.project = new Project(this.settings.projectsPath, this.app, this.settings, this.file, localeKey);
     this.area = new Area(this.settings.areasPath, this.app, this.settings, this.file, localeKey);
     this.resource = new Resource(this.settings.resourcesPath, this.app, this.settings, this.file, localeKey);
@@ -324,6 +349,7 @@ export default class LifeOS extends Plugin {
 
   loadGlobalHelpers() {
     const helpers = {
+      Theme: this.theme,
       Project: this.project,
       Area: this.area,
       Resource: this.resource,
@@ -334,8 +360,7 @@ export default class LifeOS extends Plugin {
       Date: this.date,
     };
 
-    (window as any).PeriodicPARA = helpers;
-    (window as any).LifeOS = helpers;
+    this.globalHelpers.publish(helpers);
   }
 
   initCreateNoteView = async () => {
@@ -369,6 +394,16 @@ export default class LifeOS extends Plugin {
 
   private registerWorkspaceCommands() {
     const t = getFeatureI18n(this.getCurrentLocaleKey());
+    const product = productMessages(this.getCurrentLocaleKey());
+    this.addCommand({
+      id: 'periodic-para-open-today-records',
+      name: product.today,
+      callback: () => {
+        void openTodayRecords(this.app, this.settings, this.getCurrentLocaleKey(), product.unavailable).catch(
+          () => new Notice(product.unavailable),
+        );
+      },
+    });
 
     this.addCommand({
       id: 'periodic-para-initialize-workspace',

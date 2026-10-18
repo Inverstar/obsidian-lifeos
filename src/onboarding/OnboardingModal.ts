@@ -4,7 +4,11 @@ import { QuickCaptureModal } from '../capture/QuickCaptureModal';
 import { DAILY } from '../constant';
 import { getFeatureI18n } from '../feature-i18n';
 import type LifeOS from '../main';
+import { themeSettingsMessages } from '../theme/messages';
 import { createPeriodicFile } from '../util';
+import { entryMessages } from './entry-messages';
+import { WORKSPACE_LANGUAGES } from './locale';
+import { prepareQuickCapture } from './quick-start';
 import {
   type WorkspaceLocale,
   type WorkspaceMode,
@@ -32,7 +36,7 @@ export class OnboardingModal extends Modal {
 
   constructor(private readonly plugin: LifeOS) {
     super(plugin.app);
-    this.mode = plugin.settings.usePARANotes ? 'para' : 'periodic';
+    this.mode = plugin.settings.useThemeNotes ? (plugin.settings.usePARANotes ? 'para' : 'theme') : 'periodic';
     this.locale = normalizeWorkspaceLocale(plugin.getCurrentLocaleKey());
   }
 
@@ -56,9 +60,29 @@ export class OnboardingModal extends Modal {
 
   private renderSetup(): void {
     const t = getFeatureI18n(this.locale);
+    this.modalEl.dir = this.locale === 'ar' ? 'rtl' : 'ltr';
     this.contentEl.empty();
     this.setTitle(t.setupTitle);
     this.contentEl.createEl('p', { cls: 'lifeos-onboarding-description', text: t.setupDescription });
+
+    const entry = entryMessages(this.locale);
+    new Setting(this.contentEl)
+      .setName(entry.captureNow)
+      .setDesc(entry.captureHelp)
+      .addButton((button) =>
+        button.setButtonText(t.setupQuickRecord).onClick(async () => {
+          button.setDisabled(true);
+          try {
+            await prepareQuickCapture(this.app, this.plugin.settings, this.locale);
+            await this.plugin.saveSettings({ ...this.plugin.settings, locale: this.locale, onboardingVersion: 1 });
+            this.close();
+            new QuickCaptureModal(this.plugin, 'record').open();
+          } catch (error) {
+            new Notice(`${t.setupFailed}: ${error instanceof Error ? error.message : String(error)}`);
+            button.setDisabled(false);
+          }
+        }),
+      );
 
     if (this.profile) {
       this.contentEl.createDiv({ cls: 'lifeos-onboarding-lock', text: t.setupLocked });
@@ -68,10 +92,8 @@ export class OnboardingModal extends Modal {
       .setName(t.setupLanguage)
       .setDesc(t.setupLanguageDescription)
       .addDropdown((dropdown) => {
+        Object.entries(WORKSPACE_LANGUAGES).forEach(([key, label]) => dropdown.addOption(key, label));
         dropdown
-          .addOption('zh-cn', '简体中文')
-          .addOption('zh-tw', '繁體中文')
-          .addOption('en', 'English')
           .setValue(this.locale)
           .setDisabled(Boolean(this.profile))
           .onChange((value) => {
@@ -82,11 +104,18 @@ export class OnboardingModal extends Modal {
 
     new Setting(this.contentEl)
       .setName(t.setupMode)
-      .setDesc(this.mode === 'para' ? t.setupParaDescription : t.setupPeriodicOnlyDescription)
+      .setDesc(
+        this.mode === 'para'
+          ? t.setupParaDescription
+          : this.mode === 'theme'
+            ? themeSettingsMessages(this.locale).modeHelp
+            : t.setupPeriodicOnlyDescription,
+      )
       .addDropdown((dropdown) => {
         dropdown
           .addOption('para', t.setupPara)
           .addOption('periodic', t.setupPeriodicOnly)
+          .addOption('theme', themeSettingsMessages(this.locale).title)
           .setValue(this.mode)
           .setDisabled(Boolean(this.profile))
           .onChange((value) => {
@@ -141,6 +170,7 @@ export class OnboardingModal extends Modal {
                 onboardingVersion: 1,
                 usePeriodicNotes: true,
                 usePARANotes: this.mode === 'para',
+                useThemeNotes: this.mode !== 'periodic',
               };
               const result = await initializeWorkspace(this.app, settings, this.mode, this.locale, {
                 includeExamples: this.includeExamples,
@@ -172,6 +202,7 @@ export class OnboardingModal extends Modal {
 
   private renderCompletion(result: WorkspaceSetupResult): void {
     const t = getFeatureI18n(this.locale);
+    this.modalEl.dir = this.locale === 'ar' ? 'rtl' : 'ltr';
     this.contentEl.empty();
     this.setTitle(t.setupCompleteTitle);
     this.contentEl.createEl('p', { cls: 'lifeos-onboarding-description', text: t.setupCompleteDescription });

@@ -1,3 +1,6 @@
+import { normalizeWorkspaceLocale } from '../../onboarding/locale';
+import { ThemeSettings } from '../../theme/ThemeSettings';
+import { themeSettingsMessages } from '../../theme/messages';
 import { Divider, Form, Input, Switch, Tabs, Typography } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState, useEffect } from 'react';
@@ -8,6 +11,10 @@ import type { PluginSettings } from '../../type';
 import { DEFAULT_SETTINGS } from '../../view/SettingTab';
 import { ConfigProvider } from '../ConfigProvider';
 import './index.less';
+import { CaptureSettings } from '../../capture/CaptureSettings';
+import { captureSettingsMessages } from '../../capture/settings-messages';
+import { ProductSettings } from '../../product/ProductSettings';
+import { productMessages } from '../../product/messages';
 import { InlineAutoComplete } from '../InlineAutoComplete';
 import { InlineSelect } from '../InlineSelect';
 import { TopBanner } from '../TopBanner';
@@ -52,24 +59,31 @@ export const SettingTab = (props: { settings: PluginSettings; saveSettings: (set
         form={form}
         labelCol={{ span: 8 }}
         wrapperCol={{ span: 16 }}
-        initialValues={settings}
+        initialValues={{ ...settings, locale: settings.locale ? normalizeWorkspaceLocale(settings.locale) : '' }}
         onValuesChange={(changedValues) => {
-          setSetting({ ...settings, ...changedValues });
-          saveSettings(changedValues);
+          const next = { ...settings, ...changedValues };
+          setSetting(next);
+          saveSettings(next);
         }}
       >
-        <Form.Item name="locale" label={localeMap.LANGUAGE} help={localeMap.LANGUAGE_HELP}>
+        <Form.Item
+          className="lifeos-language-setting"
+          name="locale"
+          label={localeMap.LANGUAGE}
+          help={localeMap.LANGUAGE_HELP}
+        >
           <InlineSelect
             options={[
               { value: '', label: localeMap.LANGUAGE_AUTO },
               { value: 'en', label: 'English' },
               { value: 'de', label: 'Deutsch' },
-              { value: 'es', label: 'Espanol' },
-              { value: 'fr', label: 'Francais' },
-              { value: 'pt', label: 'Portugues' },
-              { value: 'zh', label: '简体中文' },
+              { value: 'es', label: 'Español' },
+              { value: 'fr', label: 'Français' },
+              { value: 'pt', label: 'Português' },
+              { value: 'zh-cn', label: '简体中文' },
               { value: 'zh-tw', label: '繁體中文' },
               { value: 'ja', label: '日本語' },
+              { value: 'ko', label: '한국어' },
               { value: 'ar', label: 'العربية' },
             ]}
           />
@@ -78,6 +92,27 @@ export const SettingTab = (props: { settings: PluginSettings; saveSettings: (set
           defaultActiveKey="periodic"
           centered
           items={[
+            {
+              key: 'product',
+              label: productMessages(localeKey).title,
+              children: app && <ProductSettings app={app} settings={settings} locale={localeKey} />,
+            },
+            {
+              key: 'capture',
+              label: captureSettingsMessages(localeKey).title,
+              children: app && (
+                <CaptureSettings
+                  app={app}
+                  settings={settings}
+                  locale={localeKey}
+                  onChange={(paths) => {
+                    const next = { ...settings, quickCaptureDefaultThemes: paths };
+                    setSetting(next);
+                    saveSettings(next);
+                  }}
+                />
+              ),
+            },
             {
               key: 'periodic',
               label: localeMap.SETTING_PERIODIC_NOTES,
@@ -99,7 +134,7 @@ export const SettingTab = (props: { settings: PluginSettings; saveSettings: (set
                       >
                         <Input placeholder={DEFAULT_SETTINGS.habitHeader} />
                       </Form.Item>
-                      {settings.usePARANotes && (
+                      {settings.useThemeNotes && settings.usePARANotes && (
                         <>
                           <Form.Item
                             help={localeMap.SETTING_PROJECT_LIST_HEADER_HELP}
@@ -320,72 +355,8 @@ export const SettingTab = (props: { settings: PluginSettings; saveSettings: (set
             },
             {
               key: 'para',
-              label: localeMap.SETTING_PARA_NOTES,
-              children: (
-                <>
-                  <Form.Item name="usePARANotes" label={localeMap.SETTING_TURN_ON}>
-                    <Switch />
-                  </Form.Item>
-
-                  {settings.usePARANotes && (
-                    <>
-                      <Form.Item name="projectsPath" label={localeMap.SETTING_PROJECTS_FOLDER}>
-                        <InlineAutoComplete options={folders} />
-                      </Form.Item>
-                      <Form.Item name="areasPath" label={localeMap.SETTING_AREAS_FOLDER}>
-                        <InlineAutoComplete options={folders} />
-                      </Form.Item>
-                      <Form.Item name="resourcesPath" label={localeMap.SETTING_RESOURCES_FOLDER}>
-                        <InlineAutoComplete options={folders} />
-                      </Form.Item>
-                      <Form.Item name="archivesPath" label={localeMap.SETTING_ARCHIVES_FOLDER}>
-                        <InlineAutoComplete options={folders} />
-                      </Form.Item>
-                      <Form.Item
-                        help={localeMap.SETTING_ADVANCED_SETTINGS_HELP}
-                        name="usePARAAdvanced"
-                        label={localeMap.SETTING_ADVANCED_SETTINGS}
-                      >
-                        <Switch />
-                      </Form.Item>
-                      {settings.usePARAAdvanced && (
-                        <>
-                          <Form.Item name="paraIndexFilename" label={localeMap.SETTING_INDEX_FILENAME}>
-                            <InlineSelect
-                              options={[
-                                {
-                                  label: localeMap.SETTING_INDEX_FILENAME_FOLDER,
-                                  value: 'folderName',
-                                },
-                                {
-                                  label: localeMap.SETTING_INDEX_FILENAME_README,
-                                  value: 'readme',
-                                },
-                              ]}
-                            />
-                          </Form.Item>
-                          {[
-                            [PROJECT, settings.projectsPath],
-                            [AREA, settings.areasPath],
-                            [RESOURCE, settings.resourcesPath],
-                            [ARCHIVE, settings.archivesPath],
-                          ].map(([name, path]) => {
-                            return (
-                              <Form.Item
-                                key={name}
-                                name={`${name.toLocaleLowerCase()}sTemplateFilePath`}
-                                label={`${localeMap[name]}${localeMap.SETTING_TEMPLATE}`}
-                              >
-                                <InlineAutoComplete options={files} placeholder={`${path}/Template.md`} />
-                              </Form.Item>
-                            );
-                          })}
-                        </>
-                      )}
-                    </>
-                  )}
-                </>
-              ),
+              label: themeSettingsMessages(localeKey).title,
+              children: <ThemeSettings settings={settings} locale={localeKey} folders={folders} files={files} />,
             },
           ]}
         />

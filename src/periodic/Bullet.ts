@@ -1,16 +1,19 @@
 import { MarkdownRenderer } from 'obsidian';
+import { renderMissingThemeTags } from '../dependencies/query-help';
+import { matchesThemeTag } from '../theme/tag-match';
+import { renderThemeQuerySummary } from '../theme/query-summary';
+import { themeRowFilter } from '../theme/query-filter';
+import { renderTaskQuery } from '../component/TaskQuery';
 import type { App, MarkdownPostProcessorContext, Plugin } from 'obsidian';
 import type { PluginSettings } from '../type';
 
 import type { DataviewApi, Link, STask } from 'obsidian-dataview';
 import { Markdown } from '../component/Markdown';
 
-import { ERROR_MESSAGE } from '../constant';
-import { getI18n } from '../i18n';
 import type LifeOS from '../main';
 import { Date as PeriodicDate } from '../periodic/Date';
 import { File } from '../periodic/File';
-import { generateIgnoreOperator, renderError } from '../util';
+import { generateIgnoreOperator } from '../util';
 
 type Element = { text: string; link: Link; path: string };
 
@@ -96,42 +99,51 @@ export class Bullet {
 
   listByTag = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     const filepath = ctx.sourcePath;
-    const tags = this.file.tags(filepath);
-    const div = el.createEl('div');
-    const component = new Markdown(div);
-
-    if (!tags.length) {
-      return renderError(this.app, getI18n(this.locale)[`${ERROR_MESSAGE}NO_FRONT_MATTER_TAG`], div, filepath);
-    }
-
-    const from = tags
-      .map((tag: string, index: number) => {
-        return `#${tag} ${index === tags.length - 1 ? '' : 'OR'}`;
-      })
-      .join(' ')
-      .trim();
-    const dataview = await this.plugin.getDataviewAPI();
-    const lists = await dataview.pages(`(${from}) ${generateIgnoreOperator(this.settings)}`).file.lists;
-    const result = lists.where((L: { task: STask; path: string; tags: string[] }) => {
-      let includeTag = false;
-      if (L.task || L.path === filepath) return false;
-      for (const tag of tags) {
-        includeTag = L.tags.join(' ').toLowerCase().includes(`#${tag.toLowerCase()}`);
-        if (includeTag) {
-          break;
+    return renderTaskQuery(
+      this.app,
+      el,
+      ctx,
+      async (div, component) => {
+        const tags = this.file.tags(filepath);
+        if (!tags.length) {
+          return renderMissingThemeTags(this.app, div, filepath, this.locale);
         }
-      }
-      return includeTag;
-    });
-    const groupResult = result.groupBy((elem: Element) => {
-      return elem.link;
-    });
-    const sortResult = groupResult.sort((elem: { rows: Element }) => elem.rows.link, 'desc');
-    const tableResult = sortResult.map((k: { rows: Element }) => [k.rows.text as string, k.rows.link as Link]);
-    const tableValues = tableResult.array();
 
-    dataview.table(['Bullet', 'Link'], tableValues, div, component, filepath);
+        const from = tags
+          .map((tag: string, index: number) => {
+            return `#${tag} ${index === tags.length - 1 ? '' : 'OR'}`;
+          })
+          .join(' ')
+          .trim();
+        const dataview = await this.plugin.getDataviewAPI();
+        const lists = await dataview.pages(`(${from}) ${generateIgnoreOperator(this.settings)}`).file.lists;
+        const allowed = await themeRowFilter(
+          this.app,
+          this.settings,
+          lists.array().map((row: { path: string }) => row.path),
+          filepath,
+        );
+        const result = lists.where((L: { task: STask; path: string; line: number; tags: string[] }) => {
+          return !L.task && allowed(L) && matchesThemeTag(L.tags, tags);
+        });
+        const groupResult = result.groupBy((elem: Element) => {
+          return elem.link;
+        });
+        const sortResult = groupResult.sort((elem: { rows: Element }) => elem.rows.link, 'desc');
+        const tableResult = sortResult.map((k: { rows: Element }) => [k.rows.text as string, k.rows.link as Link]);
+        const tableValues = tableResult.array();
 
-    ctx.addChild(component);
+        renderThemeQuerySummary(div, this.locale, tags, result.length, 'records');
+        if (tableValues.length)
+          await dataview.table(
+            this.locale.startsWith('zh') ? ['记录', '来源'] : ['Record', 'Source'],
+            tableValues,
+            div,
+            component,
+            filepath,
+          );
+      },
+      this.locale,
+    );
   };
 }

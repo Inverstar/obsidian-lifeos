@@ -1,9 +1,16 @@
 import { ARCHIVE, AREA, DAILY, MONTHLY, PROJECT, QUARTERLY, RESOURCE, WEEKLY, YEARLY } from '../constant';
 import { getFeatureI18n } from '../feature-i18n';
+import { joinVaultPath } from '../periodic/paths';
+import { themeSettingsMessages } from '../theme/messages';
+import { buildThemeTemplate } from '../theme/templates';
 import type { PeriodicNotesTemplateFilePath, PluginSettings } from '../type';
+import translations from './translations.json';
 
-export type WorkspaceMode = 'periodic' | 'para';
-export type WorkspaceLocale = 'en' | 'zh-cn' | 'zh-tw';
+export type WorkspaceMode = 'periodic' | 'para' | 'theme';
+export { normalizeWorkspaceLocale } from './locale';
+import { normalizeWorkspaceLocale } from './locale';
+export type { WorkspaceLocale } from './locale';
+import type { WorkspaceLocale } from './locale';
 
 export type TemplatePlan = {
   path: string;
@@ -17,7 +24,7 @@ export type WorkspaceModeGuide = {
   dailyFlow: string;
 };
 
-const MODE_GUIDES: Record<WorkspaceLocale, Record<WorkspaceMode, WorkspaceModeGuide>> = {
+const MODE_GUIDES: Record<'en' | 'zh-cn' | 'zh-tw', Record<'periodic' | 'para', WorkspaceModeGuide>> = {
   en: {
     periodic: {
       bestFor: 'A lightweight journal built around daily capture and periodic review.',
@@ -56,19 +63,28 @@ const MODE_GUIDES: Record<WorkspaceLocale, Record<WorkspaceMode, WorkspaceModeGu
   },
 };
 
-export function normalizeWorkspaceLocale(locale?: string): WorkspaceLocale {
-  const normalized = locale?.toLowerCase().replace('_', '-') ?? 'en';
-  if (normalized === 'zh-tw' || normalized === 'zh-hk' || normalized === 'zh-hant') return 'zh-tw';
-  if (normalized.startsWith('zh')) return 'zh-cn';
-  return 'en';
-}
-
 export function getWorkspaceModeGuide(mode: WorkspaceMode, locale?: string): WorkspaceModeGuide {
-  return MODE_GUIDES[normalizeWorkspaceLocale(locale)][mode];
+  if (mode === 'theme')
+    return {
+      bestFor: themeSettingsMessages(locale || 'en').modeHelp,
+      notFor: themeSettingsMessages(locale || 'en').modeNotFor,
+      dailyFlow: themeSettingsMessages(locale || 'en').modeFlow,
+    };
+  const normalized = normalizeWorkspaceLocale(locale);
+  const translated = translations[normalized as keyof typeof translations];
+  return translated ? translated.guides[mode] : MODE_GUIDES[normalized as 'en' | 'zh-cn' | 'zh-tw'][mode];
 }
 
 export function getLocalizedWorkspaceSettings(settings: PluginSettings, locale?: string): PluginSettings {
   const normalized = normalizeWorkspaceLocale(locale);
+  const translated = translations[normalized as keyof typeof translations];
+  if (translated)
+    return {
+      ...settings,
+      ...translated.settings,
+      themesPath: themeSettingsMessages(normalized).defaultFolder,
+      locale: normalized,
+    };
   const localized =
     normalized === 'en'
       ? {
@@ -105,24 +121,20 @@ export function getLocalizedWorkspaceSettings(settings: PluginSettings, locale?:
             areaListHeader: '領域',
             habitHeader: '習慣',
           };
-  return { ...settings, ...localized, locale: normalized };
+  return { ...settings, ...localized, themesPath: themeSettingsMessages(normalized).defaultFolder, locale: normalized };
 }
 
 function getOnboardingCopy(locale?: string) {
   const normalized = normalizeWorkspaceLocale(locale);
+  const translated = translations[normalized as keyof typeof translations];
+  if (translated) return translated.copy;
   if (normalized === 'zh-cn') {
     return {
       startPath: 'LifeOS 开始使用.md',
       title: '开始使用 LifeOS',
       lead: '请用自己的真实内容完成下面这个五分钟闭环。',
       checklist: '最初五分钟',
-      steps: [
-        '打开 Today，从今天开始',
-        '快速记录一个真实想法',
-        '创建一个具体的下一步任务',
-        '只在需要时连接到 PARA',
-        '打开周记完成首次回顾',
-      ],
+      steps: ['打开 Today，从今天开始', '快速记录一个真实想法', '创建一个具体的下一步任务', '只在需要时连接到 PARA'],
       destinations: '工作入口',
       exampleFolder: 'LifeOS 示例',
       exampleFile: '第一个工作流.md',
@@ -141,13 +153,7 @@ function getOnboardingCopy(locale?: string) {
       title: '開始使用 LifeOS',
       lead: '請用自己的真實內容完成下面這個五分鐘閉環。',
       checklist: '最初五分鐘',
-      steps: [
-        '開啟 Today，從今天開始',
-        '快速記錄一個真實想法',
-        '建立一個具體的下一步任務',
-        '只在需要時連結到 PARA',
-        '開啟週記完成首次回顧',
-      ],
+      steps: ['開啟 Today，從今天開始', '快速記錄一個真實想法', '建立一個具體的下一步任務', '只在需要時連結到 PARA'],
       destinations: '工作入口',
       exampleFolder: 'LifeOS 範例',
       exampleFile: '第一個工作流程.md',
@@ -170,7 +176,6 @@ function getOnboardingCopy(locale?: string) {
       'Quick-capture one real thought',
       'Create one concrete next-action task',
       'Connect it to PARA only when useful',
-      'Open the weekly note for your first review',
     ],
     destinations: 'Working destinations',
     exampleFolder: 'LifeOS Examples',
@@ -200,18 +205,23 @@ export function getStartHerePlan(settings: PluginSettings, mode: WorkspaceMode, 
       '',
       `## ${copy.checklist}`,
       '',
-      ...copy.steps.map((step) => `- [ ] ${step}`),
+      ...copy.steps.map(
+        (step, index) =>
+          `- [ ] ${mode === 'theme' && index === 3 ? themeSettingsMessages(locale || 'en').modeFlow : step}`,
+      ),
       '',
       `## ${copy.destinations}`,
       '',
-      `- Today: \`${settings.periodicNotesPath}\``,
+      `- ${getFeatureI18n(locale).setupOpenToday}: \`${settings.periodicNotesPath}\``,
       ...(mode === 'para'
         ? [
-            `- Projects: \`${settings.projectsPath}\``,
-            `- Areas: \`${settings.areasPath}\``,
-            `- Resources: \`${settings.resourcesPath}\``,
+            `- ${getFeatureI18n(locale).templateProjects}: \`${settings.projectsPath}\``,
+            `- ${getFeatureI18n(locale).templateAreas}: \`${settings.areasPath}\``,
+            `- ${settings.resourcesPath.replace(/^\d+\. /, '')}: \`${settings.resourcesPath}\``,
           ]
-        : []),
+        : mode === 'theme'
+          ? [`- ${themeSettingsMessages(locale || 'en').title}: \`${settings.themesPath}\``]
+          : []),
       '',
     ].join('\n'),
   };
@@ -240,7 +250,7 @@ export function getExamplePlan(mode: WorkspaceMode, locale?: string): TemplatePl
   };
 }
 
-const codeBlock = (view: string) => `\`\`\`LifeOS\n${view}\n\`\`\``;
+const codeBlock = (view: string) => `\`\`\`LifeOSOpen\n${view}\n\`\`\``;
 
 function getPeriodicTemplatePath(settings: PluginSettings, periodType: string): string {
   const settingKey = `periodicNotesTemplateFilePath${periodType}` as PeriodicNotesTemplateFilePath;
@@ -249,7 +259,7 @@ function getPeriodicTemplatePath(settings: PluginSettings, periodType: string): 
     return settings[settingKey];
   }
 
-  return `${settings.periodicNotesPath}/Templates/${periodType}.md`;
+  return joinVaultPath(settings.periodicNotesPath, 'Templates', `${periodType}.md`);
 }
 
 function buildDailyTemplate(settings: PluginSettings, mode: WorkspaceMode, locale?: string): string {
@@ -259,6 +269,9 @@ function buildDailyTemplate(settings: PluginSettings, mode: WorkspaceMode, local
   if (mode === 'para') {
     sections.push(`## ${settings.projectListHeader}`, '', '0hr0', '');
   }
+
+  if (mode === 'theme')
+    sections.push(`## ${themeSettingsMessages(locale || 'en').title}`, '', '{{snapshot:Theme}}', '');
 
   sections.push(`## ${settings.habitHeader}`, '', '- [ ] ', '');
 
@@ -378,6 +391,19 @@ export function getBasicTemplatePlans(
         path: getParaTemplatePath(settings, type),
         content: buildParaTemplate(locale),
       });
+    });
+  }
+
+  if (mode === 'theme') {
+    const template =
+      settings.useThemeAdvanced && settings.themesTemplateFilePath
+        ? settings.themesTemplateFilePath
+        : joinVaultPath(settings.themesPath, 'Template.md');
+    plans.push({ path: template, content: buildThemeTemplate(locale || 'en') });
+    plans.push({
+      path: joinVaultPath(settings.themesPath, 'README.md'),
+      content: `# ${themeSettingsMessages(locale || 'en').title}\n\n${codeBlock('ThemeListByFolder')}\n`,
+      role: 'guide',
     });
   }
 

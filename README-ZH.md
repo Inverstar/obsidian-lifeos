@@ -16,17 +16,34 @@
 
 ![](https://obsidian-life-os.pages.dev/plugin/periodic-para-plugin-en.png)
 
+初始化向导、快速记录、模板和目录配置现已支持英、简中、繁中、德、西、法、葡、日、韩、阿拉伯语。对应的开源示例库提供每种语言的示例版和空白版，维护方式见[多语言工作库](docs/multilingual-workspaces.md)。
+
+## 主题笔记，无需绑定 PARA
+
+独立启用主题笔记，创建带标签的主题目录与索引，关联快速记录，查看相关任务、记录和资料，并生成日记主题快照。支持 README 与同名索引、模板、列表搜索和可选名称同步。详见[主题笔记指南](docs/theme-notes.md)。十种语言均提供普通主题示例版和空白版；原有 PARA 配置及笔记保留。
+
+## 免费功能与独立 Pro 插件
+
+快速记录、基础任务录入、主题关联均完整免费。设置中的「使用与升级」提供快捷入口、只读目录配置预览，以及独立收费插件 LifeOS Pro 的静态推广链接。本插件没有付费解锁，也不会自动安装 Pro。新增推广区不加载远程广告、不发送遥测、不上传笔记；官网仅在点击链接时打开，携带固定渠道参数。已有可选 usememos 集成独立配置。
+
+通过「今日记录」命令可打开今日日记并定位到记录段落。切换插件前请阅读[接管指南](docs/pro-handover.md)。本仓库不包含 Pro 源码、私有配置或激活数据。
+
 ## Features
 
-- 首次启用时提供初始化向导，可选择“周期笔记 + PARA”或“仅周期笔记”，并以简体中文、繁体中文或英文生成工作区。初始化后会保留所选方案，后续修复不会覆盖已有文件。
+- 首次启用时提供初始化向导，可选择“周期笔记 + PARA”或“仅周期笔记”，并以十种支持语言之一生成工作区。初始化后会保留所选方案，后续修复不会覆盖已有文件。
 - 内置日、周、月、季度、年度以及 Projects、Areas、Resources、Archives 基础模板。
 - 可选示例工作流与五分钟完成指南会引导用户完成首次记录；示例未被修改时可以安全移除。
-- 在命令面板中使用“快速记录”或“快速任务”，可直接写入今日日记的 `Daily Record` 区域。
-- 继续使用 Dataview 作为查询引擎；启用 LifeOS 前请先安装并启用 Dataview。
+- “快速记录”支持连续输入、原生实时预览、图片、任务、PARA 主题关联、历史浏览、组合筛选与编辑管理，内容直接保存在日记中。见[快速记录说明](docs/quick-capture.md)。
+- 初始化、快速记录无需 Dataview；查询视图仍使用 Dataview，并会提示安装、启用或等待索引。
+- 周记使用 ISO 周（周一至周日）；已有周记不会自动迁移。
 - LifeOS Basic: https://lifeos.vip/plugin/lifeos/life-os.html
 - **LifeOS Pro** : https://lifeos.vip/plugin/lifeos/life-os-pro.html
 - **DeepAsk AI Assistant** : https://lifeos.vip/plugin/deepask/deepask.html
 - 多语言界面：默认跟随 Obsidian 当前语言，也可以在插件设置页手动切换语言。
+
+## 开发与贡献
+
+请阅读 [贡献指南](CONTRIBUTING.md) 和 [社区贡献任务](docs/community-tasks.md)。最低支持 Obsidian 1.4.0。
 
 ## Support
 
